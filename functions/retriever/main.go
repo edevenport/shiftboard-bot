@@ -167,7 +167,7 @@ func main() {
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithEndpointResolverWithOptions(customResolver))
 	if err != nil {
-		fmt.Errorf("error loading default AWS configuration: %v", err)
+		fmt.Printf("error loading default AWS configuration: %v\n", err)
 		os.Exit(1)
 	}
 
