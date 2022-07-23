@@ -1,0 +1,81 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SAM template for shiftboard-bot
+
+Parameters:
+  TableNameParameter:
+    Type: String
+    Default: ShiftBoard
+  EmailIdentityParameter:
+    Type: String
+  DomainIdentityParameter:
+    Type: String
+
+Resources:
+  DatabaseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: ID
+          AttributeType: S
+      BillingMode: PROVISIONED
+      KeySchema:
+        - AttributeName: ID
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      TableName: !Ref TableNameParameter
+
+  RetrieverFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/retriever
+      Environment:
+        Variables:
+          WRITER_FUNCTION: !Fn::GetAtt WriterFunction.FunctionName
+          NOTIFICATION_FUNCTION: !Fn::GetAtt NotificationFunction.FunctionName
+          # WRITER_FUNCTION2: !Ref WriterFunction
+          # NOTIFICATION_FUNCTION2: !Ref NotificationFunction
+      Handler: retriever
+      Runtime: go1.x
+      Architectures:
+        - x86_64
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref WriterFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref NotificationFunction
+
+  ProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/processor
+      Handler: processor
+      Runtime: go1.x
+      Architectures:
+        - x86_64
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DatabaseTable
+        - LambdaInvokePolicy:
+            FunctionName: !Ref NotificationFunction
+
+  NotificationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/notification
+      Handler: notification
+      Runtime: go1.x
+      Architectures:
+        - x86_64
+      Policies:
+        - SESCrudPolicy:
+            IdentityName: !Ref DomainIdentityParameter
+
+  SenderEmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Ref EmailIdentityParameter
