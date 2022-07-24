@@ -23,7 +23,7 @@ type handler struct {
 	lambdaClient *lambda.Client
 }
 
-type SSMGetParametersAPI interface {
+type SSMGetParametersByPathAPI interface {
 	GetParametersByPath(ctx context.Context,
 		params *ssm.GetParametersByPathInput,
 		optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
@@ -35,26 +35,19 @@ type LambdaInvokeAPI interface {
 		optFns ...func(*lambda.Options)) (*lambda.InvokeOutput, error)
 }
 
-func GetParametersByPath(ctx context.Context, api SSMGetParametersAPI, input *ssm.GetParametersByPathInput) (*ssm.GetParametersByPathOutput, error) {
-	return api.GetParametersByPath(ctx, input)
+func (h *handler) GetParametersByPath(ctx context.Context, api SSMGetParametersByPathAPI, path string, withDecryption bool) (*ssm.GetParametersByPathOutput, error) {
+	return api.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
+		Path:           &path,
+		WithDecryption: withDecryption,
+	})
 }
 
-func Invoke(ctx context.Context, api LambdaInvokeAPI, input *lambda.InvokeInput) (*lambda.InvokeOutput, error) {
-	return api.Invoke(ctx, input)
-}
-
-func (h *handler) readParameters(path string) (*ssm.GetParametersByPathOutput, error) {
-	input := &ssm.GetParametersByPathInput{
-		Path:           aws.String(path),
-		WithDecryption: true,
-	}
-
-	output, err := GetParametersByPath(context.TODO(), h.ssmClient, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return output, nil
+func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName string, payload []byte) (*lambda.InvokeOutput, error) {
+	return api.Invoke(ctx, &lambda.InvokeInput{
+		FunctionName:   aws.String(functionName),
+		InvocationType: types.InvocationTypeEvent,
+		Payload:        payload,
+	})
 }
 
 func apiLogin(email string, password string) (*shiftboard.Client, error) {
@@ -93,6 +86,9 @@ func readFromAPI(client *shiftboard.Client) (*[]shiftboard.Shift, error) {
 	return resp.Data.Shifts, nil
 }
 
+// func Invoke(ctx context.Context, api LambdaInvokeAPI, input *lambda.InvokeInput) (*lambda.InvokeOutput, error) {
+
+/**
 func (h *handler) invokeFunction(functionName string, payload []byte) (*lambda.InvokeOutput, error) {
 	input := &lambda.InvokeInput{
 		FunctionName:   aws.String(functionName),
@@ -107,12 +103,13 @@ func (h *handler) invokeFunction(functionName string, payload []byte) (*lambda.I
 
 	return output, nil
 }
+**/
 
 func (h handler) HandleRequest(ctx context.Context) (string, error) {
 	var email string
 	var password string
 
-	output, err := h.readParameters("/shiftboard/api")
+	output, err := h.GetParametersByPath(context.TODO(), h.ssmClient, "/shiftboard/api", true)
 	if err != nil {
 		return "", fmt.Errorf("error reading AWS parameter store: %v", err)
 	}
@@ -142,7 +139,8 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 	}
 
 	functionName := os.Getenv("WRITER_FUNCTION")
-	_, err = h.invokeFunction(functionName, jsonData)
+	// _, err = h.invokeFunction(functionName, jsonData)
+	_, err = h.Invoke(context.TODO(), h.lambdaClient, functionName, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("error invoking child function: %v", err)
 	}
