@@ -12,11 +12,10 @@ AWS_LOCAL=1
 
 # Exported Localstack environment variables
 export EAGER_SERVICE_LOADING=1
-export SERVICES="ssm,dynamodb,lambda,cloudformation"
+export SERVICES="ssm,dynamodb,lambda,iam,kms,cloudformation"
 export DEBUG=1
 export DEFAULT_REGION="$AWS_REGION"
-export DOCKER_FLAGS="-e AWSLOCAL_TRUE"
-export LAMBDA_DOCKER_FLAGS="-e AWS_LOCAL=$AWS_LOCAL"
+export LAMBDA_DOCKER_FLAGS="-e AWS_SAM_LOCAL=$AWS_LOCAL"
 
 #######################################
 # Check whether AWS S3 bucket already exists.
@@ -145,7 +144,7 @@ function main() {
     load_seed_vars "${1-}"
 
     echo "Seed SSM Parameter Store"
-    add_parameter "/shiftboard/api/email" "$SHIFTBOARD_USERNAME"
+    add_parameter "/shiftboard/api/email" "$SHIFTBOARD_USERNAME" "secure"
     add_parameter "/shiftboard/api/password" "$SHIFTBOARD_PASSWORD" "secure"
     add_parameter "/shiftboard/notifications/sender" "$SMTP_SENDER"
     add_parameter "/shiftboard/notifications/recipient" "$SMTP_RECIPIENT"
