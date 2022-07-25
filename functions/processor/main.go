@@ -72,20 +72,30 @@ func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName 
 	})
 }
 
-func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftboard.Shift) {
+func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftboard.Shift) error {
 	for i := 0; i < len(*newData); i++ {
 		shift := (*newData)[i]
 		exists, updated := getState(shift, cachedData)
 
+		var subject string
+		var msgBody string
+
 		if !exists {
-			fmt.Printf("Shift has been added: %s on %s\n", shift.Name, shift.Created)
-			h.sendNotification("New shift added", shift.Name)
+			subject = fmt.Sprintf("New shift added: %s", shift.Name)
+			msgBody = fmt.Sprintf("Shift has been added for '%s' on %s", shift.Name, shift.Created)
 		}
+
 		if updated {
-			fmt.Printf("Shift has been updated: %s\n", shift.Name)
-			h.sendNotification("Shift has been updated", shift.Name)
+			subject = fmt.Sprintf("Shift updated: %s", shift.Name)
+			msgBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
+		}
+
+		if err := h.sendNotification(subject, msgBody); err != nil {
+			return fmt.Errorf("Error sending notification: %v", err)
 		}
 	}
+
+	return nil
 }
 
 func (h *handler) writeToDB(tableName string, payload []shiftboard.Shift) error {
@@ -146,8 +156,7 @@ func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) (exists bool, u
 func unmarshalDBItems(cachedData *dynamodb.ScanOutput) ([]shiftboard.Shift, error) {
 	items := []shiftboard.Shift{}
 
-	err := attributevalue.UnmarshalListOfMaps(cachedData.Items, &items)
-	if err != nil {
+	if err := attributevalue.UnmarshalListOfMaps(cachedData.Items, &items); err != nil {
 		return nil, fmt.Errorf("error unmarshalling DynamoDB list of maps: %v", err)
 	}
 
@@ -160,8 +169,6 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 		return "", fmt.Errorf("function payload is empty")
 	}
 
-	// fmt.Printf("Payload: %+v\n\n", payload)
-
 	// Read existing items from DynamoDB table
 	dbOutput, err := h.Scan(context.TODO(), h.dbClient, h.tableName)
 	if err != nil {
@@ -170,14 +177,16 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 
 	cachedData, err := unmarshalDBItems(dbOutput)
 
-	// Write data to DynamoDB table and end runtime if no data exists
+	// Write data to DynamoDB table and finish if no cache exists
 	if dbOutput.Count == 0 {
 		h.writeToDB(h.tableName, payload)
 		return "Success", nil
 	}
 
-	// Compare results
-	h.compareData(&payload, &cachedData)
+	// Compare new data with cached data and send notifications on new and updated items
+	if err = h.compareData(&payload, &cachedData); err != nil {
+		return "", fmt.Errorf("error comparing new data with cache: %v", err)
+	}
 
 	// Write new data to DynamoDB table
 	h.writeToDB(h.tableName, payload)
