@@ -35,10 +35,8 @@ Resources:
       CodeUri: functions/retriever
       Environment:
         Variables:
-          WRITER_FUNCTION: !Fn::GetAtt ProcessorFunction.FunctionName
-          NOTIFICATION_FUNCTION: !Fn::GetAtt NotificationFunction.FunctionName
-          # WRITER_FUNCTION2: !Ref ProcessorFunction
-          # NOTIFICATION_FUNCTION2: !Ref NotificationFunction
+          PROCESSOR_FUNCTION: !Ref ProcessorFunction
+          NOTIFICATION_FUNCTION: !Ref NotificationFunction
       Handler: retriever
       Runtime: go1.x
       Architectures:
@@ -78,7 +76,21 @@ Resources:
         - SESCrudPolicy:
             IdentityName: !Ref DomainIdentityParameter
 
-  # SenderEmailIdentity:
-    # Type: AWS::SES::EmailIdentity
-    # Properties:
-      # EmailIdentity: !Ref EmailIdentityParameter
+#   SenderEmailIdentity:
+#     Type: AWS::SES::EmailIdentity
+#     Properties:
+#       EmailIdentity: !Ref EmailIdentityParameter
+#
+
+Outputs:
+  RetrieverFunctionName:
+    Description: Retriever function name
+    Value: !Ref RetrieverFunction
+
+  ProcessorFunctionName:
+    Description: Processor function name
+    Value: !Ref ProcessorFunction
+
+  NotificationFunctionName:
+    Description: Notification function name
+    Value: !Ref NotificationFunction
