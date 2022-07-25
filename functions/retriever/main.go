@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -59,7 +58,7 @@ func apiLogin(email string, password string) (*shiftboard.Client, error) {
 	// Retrieve list of sites for the API login
 	resp, err := client.ListSites()
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("error calling ShiftBoard API ListSites (check credentials): %v", err)
 	}
 
 	// Extract Org ID from first site
@@ -68,7 +67,7 @@ func apiLogin(email string, password string) (*shiftboard.Client, error) {
 	// Set API access token on login
 	_, err = client.Login(orgID)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("error calling ShiftBoard API Login: %v", err)
 	}
 
 	return client, nil
@@ -76,13 +75,15 @@ func apiLogin(email string, password string) (*shiftboard.Client, error) {
 
 func readFromAPI(client *shiftboard.Client) (*[]shiftboard.Shift, error) {
 	currentTime := time.Now()
+
+	// From one month prior to six months ahead
 	startDate := currentTime.AddDate(0, -1, 0).Format(time.RFC3339)
 	endDate := currentTime.AddDate(0, 6, 0).Format(time.RFC3339)
 
 	// Fetch list of shifts from API
 	resp, err := client.ListShifts(startDate, endDate)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("error calling ShiftBoard API ListShifts: %v", err)
 	}
 
 	return resp.Data.Shifts, nil
@@ -108,13 +109,13 @@ func (h *handler) invokeFunction(functionName string, payload []byte) (*lambda.I
 **/
 
 func (h handler) HandleRequest(ctx context.Context) (string, error) {
-	var email string
-	var password string
-
 	output, err := h.GetParametersByPath(context.TODO(), h.ssmClient, "/shiftboard/api", true)
 	if err != nil {
 		return "", fmt.Errorf("error reading AWS parameter store: %v", err)
 	}
+
+	var email string
+	var password string
 
 	for _, item := range output.Parameters {
 		switch strings.Split(*item.Name, "/")[3] {
@@ -125,11 +126,9 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		}
 	}
 
-	fmt.Printf("email: %+v\n", email)
-
 	apiClient, err := apiLogin(email, password)
 	if err != nil {
-		return "", fmt.Errorf("error logging into the ShiftBoard API: %v", err)
+		return "", fmt.Errorf("error with ShiftBoard API login: %v", err)
 	}
 
 	data, err := readFromAPI(apiClient)
@@ -139,19 +138,15 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return "", fmt.Errorf("error marshalling data: %v", err)
+		return "", fmt.Errorf("error marshalling ShiftBoard API data: %v", err)
 	}
-
-	fmt.Println("PROCESSOR_FUNCTION: ", h.processorFunction)
-
-	fmt.Printf("%+v\n", string(jsonData))
 
 	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.processorFunction, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("error invoking child function: %v", err)
 	}
 
-	return fmt.Sprintf("Success"), nil
+	return "Success", nil
 }
 
 func getEnv(key, fallback string) string {
@@ -165,10 +160,8 @@ func main() {
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		if os.Getenv("AWS_SAM_LOCAL") == "1" {
 			return aws.Endpoint{
-				PartitionID: "aws",
-				URL:         "http://host.docker.internal:4566",
-				// URL: "http://172.17.0.2:4566",
-				// URL: "http://"+os.GetEnv("LOCALSTACK_HOSTNAME")+":4566",
+				PartitionID:   "aws",
+				URL:           "http://host.docker.internal:4566",
 				SigningRegion: os.Getenv("AWS_REGION"),
 			}, nil
 		}
