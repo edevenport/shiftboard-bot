@@ -8,7 +8,7 @@ set -euo pipefail
 AWS_REGION="us-west-2"
 AWS_S3_BUCKET="shiftboard-bot"
 AWS_ENDPOINT_URL="http://localhost:4566"
-AWS_LOCAL=1
+AWS_LOCAL="true"
 
 # Exported Localstack environment variables
 export EAGER_SERVICE_LOADING=1

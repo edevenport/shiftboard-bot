@@ -213,7 +213,7 @@ func getEnv(key, fallback string) string {
 
 func main() {
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		if os.Getenv("AWS_SAM_LOCAL") == "1" {
+		if os.Getenv("AWS_SAM_LOCAL") == "true" {
 			return aws.Endpoint{
 				PartitionID:   "aws",
 				URL:           "http://host.docker.internal:4566",
