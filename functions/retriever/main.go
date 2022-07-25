@@ -19,8 +19,10 @@ import (
 )
 
 type handler struct {
-	ssmClient    *ssm.Client
-	lambdaClient *lambda.Client
+	processorFunction    string
+	notificationFunction string
+	ssmClient            *ssm.Client
+	lambdaClient         *lambda.Client
 }
 
 type SSMGetParametersByPathAPI interface {
@@ -37,7 +39,7 @@ type LambdaInvokeAPI interface {
 
 func (h *handler) GetParametersByPath(ctx context.Context, api SSMGetParametersByPathAPI, path string, withDecryption bool) (*ssm.GetParametersByPathOutput, error) {
 	return api.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
-		Path:           &path,
+		Path:           aws.String(path),
 		WithDecryption: withDecryption,
 	})
 }
@@ -123,6 +125,8 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		}
 	}
 
+	fmt.Printf("email: %+v\n", email)
+
 	apiClient, err := apiLogin(email, password)
 	if err != nil {
 		return "", fmt.Errorf("error logging into the ShiftBoard API: %v", err)
@@ -138,9 +142,11 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error marshalling data: %v", err)
 	}
 
-	functionName := os.Getenv("WRITER_FUNCTION")
-	// _, err = h.invokeFunction(functionName, jsonData)
-	_, err = h.Invoke(context.TODO(), h.lambdaClient, functionName, jsonData)
+	fmt.Println("PROCESSOR_FUNCTION: ", h.processorFunction)
+
+	fmt.Printf("%+v\n", string(jsonData))
+
+	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.processorFunction, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("error invoking child function: %v", err)
 	}
@@ -148,16 +154,22 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 	return fmt.Sprintf("Success"), nil
 }
 
-func main() {
-	// fmt.Println(os.Getenv("WRITER_FUNCTION"))
-	// fmt.Println(os.Getenv("NOTIFICATION_FUNCTION"))
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
 
+func main() {
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		if os.Getenv("AWS_SAM_LOCAL") == "true" {
+		if os.Getenv("AWS_SAM_LOCAL") == "1" {
 			return aws.Endpoint{
-				PartitionID:   "aws",
-				URL:           "http://host.docker.internal:4566",
-				SigningRegion: os.Getenv("AWS_DEFAULT_REGION"),
+				PartitionID: "aws",
+				URL:         "http://host.docker.internal:4566",
+				// URL: "http://172.17.0.2:4566",
+				// URL: "http://"+os.GetEnv("LOCALSTACK_HOSTNAME")+":4566",
+				SigningRegion: os.Getenv("AWS_REGION"),
 			}, nil
 		}
 		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
@@ -170,8 +182,10 @@ func main() {
 	}
 
 	h := handler{
-		ssmClient:    ssm.NewFromConfig(cfg),
-		lambdaClient: lambda.NewFromConfig(cfg),
+		processorFunction:    getEnv("PROCESSOR_FUNCTION", "ProcessorFunction"),
+		notificationFunction: getEnv("NOTIFICATION_FUNCTION", "NotificationFunction"),
+		ssmClient:            ssm.NewFromConfig(cfg),
+		lambdaClient:         lambda.NewFromConfig(cfg),
 	}
 
 	runtime.Start(h.HandleRequest)

@@ -18,9 +18,10 @@ import (
 )
 
 type handler struct {
-	tableName    string
-	dbClient     *dynamodb.Client
-	lambdaClient *lambda.Client
+	notificationFunction string
+	tableName            string
+	dbClient             *dynamodb.Client
+	lambdaClient         *lambda.Client
 }
 
 type Message struct {
@@ -128,12 +129,52 @@ func (h *handler) sendNotification(subject string, body string) error {
 		return fmt.Errorf("error marshalling message payload: %v", err)
 	}
 
-	_, err = h.Invoke(context.TODO(), h.lambdaClient, "functionName", payload)
+	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.notificationFunction, payload)
 	if err != nil {
 		return fmt.Errorf("error calling Lambda Invoke: %v", err)
 	}
 
 	return nil
+}
+
+func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift) (string, error) {
+	// End function runtime if payload is empty
+	if len(payload) == 0 {
+		return "", fmt.Errorf("function payload is empty")
+	}
+
+	// Read existing items from DynamoDB table
+	dbOutput, err := h.Scan(context.TODO(), h.dbClient, h.tableName)
+	if err != nil {
+		return "", fmt.Errorf("error scanning DynamoDB table: %v", err)
+	}
+
+	// Unmarshal DynamoDB items to ShiftBoard Shift objects
+	cachedData, err := unmarshalDBItems(dbOutput)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshalling cached data: %v", err)
+	}
+
+	// Write data to DynamoDB table and finish if no cache exists
+	if dbOutput.Count == 0 {
+		if err = h.writeToDB(h.tableName, payload); err != nil {
+			return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
+		}
+		return "Success", nil
+	}
+
+	// Compare new data with cached data and send notifications on new and updated items
+	if err = h.compareData(&payload, &cachedData); err != nil {
+		return "", fmt.Errorf("error comparing new data with cache: %v", err)
+	}
+
+	// Write new data to DynamoDB table
+	if err = h.writeToDB(h.tableName, payload); err != nil {
+		return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
+	}
+
+	// return fmt.Sprintf("Success"), nil
+	return "Success", nil
 }
 
 func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) (exists bool, updated bool) {
@@ -163,53 +204,20 @@ func unmarshalDBItems(cachedData *dynamodb.ScanOutput) ([]shiftboard.Shift, erro
 	return items, nil
 }
 
-func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift) (string, error) {
-	// End function runtime if payload is empty
-	if len(payload) == 0 {
-		return "", fmt.Errorf("function payload is empty")
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
 	}
-
-	// Read existing items from DynamoDB table
-	dbOutput, err := h.Scan(context.TODO(), h.dbClient, h.tableName)
-	if err != nil {
-		return "", fmt.Errorf("error scanning DynamoDB table: %v", err)
-	}
-
-	// Unmarshal items from DynamoDB to ShiftBoard Shift struct list
-	cachedData, err := unmarshalDBItems(dbOutput)
-	if err != nil {
-		return "", fmt.Errorf("error unmarshalling cached data: %v", err)
-	}
-
-	// Write data to DynamoDB table and finish if no cache exists
-	if dbOutput.Count == 0 {
-		if err = h.writeToDB(h.tableName, payload); err != nil {
-			return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
-		}
-		return "Success", nil
-	}
-
-	// Compare new data with cached data and send notifications on new and updated items
-	if err = h.compareData(&payload, &cachedData); err != nil {
-		return "", fmt.Errorf("error comparing new data with cache: %v", err)
-	}
-
-	// Write new data to DynamoDB table
-	if err = h.writeToDB(h.tableName, payload); err != nil {
-		return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
-	}
-
-	// return fmt.Sprintf("Success"), nil
-	return "Success", nil
+	return fallback
 }
 
 func main() {
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		if os.Getenv("AWS_SAM_LOCAL") == "true" {
+		if os.Getenv("AWS_SAM_LOCAL") == "1" {
 			return aws.Endpoint{
 				PartitionID:   "aws",
 				URL:           "http://host.docker.internal:4566",
-				SigningRegion: os.Getenv("AWS_DEFAULT_REGION"),
+				SigningRegion: os.Getenv("AWS_REGION"),
 			}, nil
 		}
 		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
@@ -222,9 +230,10 @@ func main() {
 	}
 
 	h := handler{
-		tableName:    os.Getenv("TABLE_NAME"),
-		dbClient:     dynamodb.NewFromConfig(cfg),
-		lambdaClient: lambda.NewFromConfig(cfg),
+		notificationFunction: getEnv("NOTIFICATION_FUNCTION", "NotificationFunction"),
+		tableName:            os.Getenv("TABLE_NAME"),
+		dbClient:             dynamodb.NewFromConfig(cfg),
+		lambdaClient:         lambda.NewFromConfig(cfg),
 	}
 
 	runtime.Start(h.HandleRequest)

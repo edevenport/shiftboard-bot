@@ -99,9 +99,6 @@ func (h *handler) sendNotification(ctx context.Context, msg Message) (*ses.SendE
 }
 
 func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error) {
-	var sender string
-	var recipient string
-
 	output, err := h.readParameters("/shiftboard/notifications")
 	if err != nil {
 		return "", fmt.Errorf("error reading SSM parameter store: %v", err)
@@ -110,6 +107,9 @@ func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error
 	if len(output.Parameters) == 0 {
 		return "", fmt.Errorf("no parameters returned from SSM parameter store")
 	}
+
+	var sender string
+	var recipient string
 
 	for _, item := range output.Parameters {
 		switch strings.Split(*item.Name, "/")[3] {
@@ -134,11 +134,11 @@ func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error
 
 func main() {
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		if os.Getenv("AWS_SAM_LOCAL") == "true" {
+		if os.Getenv("AWS_SAM_LOCAL") == "1" {
 			return aws.Endpoint{
 				PartitionID:   "aws",
 				URL:           "http://host.docker.internal:4566",
-				SigningRegion: os.Getenv("AWS_DEFAULT_REGION"),
+				SigningRegion: os.Getenv("AWS_REGION"),
 			}, nil
 		}
 		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
