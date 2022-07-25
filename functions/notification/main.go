@@ -129,7 +129,7 @@ func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error
 		return "", fmt.Errorf("error sending SES notification: %v", err)
 	}
 
-	return fmt.Sprintf("Success"), nil
+	return "Success", nil
 }
 
 func main() {

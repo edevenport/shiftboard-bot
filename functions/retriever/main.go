@@ -143,7 +143,7 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 
 	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.processorFunction, jsonData)
 	if err != nil {
-		return "", fmt.Errorf("error invoking child function: %v", err)
+		return "", fmt.Errorf("error invoking function '%v': %v", h.processorFunction, err)
 	}
 
 	return "Success", nil

@@ -131,7 +131,7 @@ func (h *handler) sendNotification(subject string, body string) error {
 
 	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.notificationFunction, payload)
 	if err != nil {
-		return fmt.Errorf("error calling Lambda Invoke: %v", err)
+		return fmt.Errorf("error invoking function '%v': %v", h.notificationFunction, err)
 	}
 
 	return nil
