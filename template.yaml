@@ -8,8 +8,8 @@ Parameters:
   TableNameParameter:
     Type: String
     Default: ShiftBoard
-  EmailIdentityParameter:
-    Type: String
+  # EmailIdentityParameter:
+  #   Type: String
   DomainIdentityParameter:
     Type: String
 
@@ -35,9 +35,9 @@ Resources:
       CodeUri: functions/retriever
       Environment:
         Variables:
-          WRITER_FUNCTION: !Fn::GetAtt WriterFunction.FunctionName
+          WRITER_FUNCTION: !Fn::GetAtt ProcessorFunction.FunctionName
           NOTIFICATION_FUNCTION: !Fn::GetAtt NotificationFunction.FunctionName
-          # WRITER_FUNCTION2: !Ref WriterFunction
+          # WRITER_FUNCTION2: !Ref ProcessorFunction
           # NOTIFICATION_FUNCTION2: !Ref NotificationFunction
       Handler: retriever
       Runtime: go1.x
@@ -45,7 +45,7 @@ Resources:
         - x86_64
       Policies:
         - LambdaInvokePolicy:
-            FunctionName: !Ref WriterFunction
+            FunctionName: !Ref ProcessorFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref NotificationFunction
 
@@ -53,6 +53,9 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: functions/processor
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableNameParameter
       Handler: processor
       Runtime: go1.x
       Architectures:
@@ -75,7 +78,7 @@ Resources:
         - SESCrudPolicy:
             IdentityName: !Ref DomainIdentityParameter
 
-  SenderEmailIdentity:
-    Type: AWS::SES::EmailIdentity
-    Properties:
-      EmailIdentity: !Ref EmailIdentityParameter
+  # SenderEmailIdentity:
+    # Type: AWS::SES::EmailIdentity
+    # Properties:
+      # EmailIdentity: !Ref EmailIdentityParameter
