@@ -25,7 +25,7 @@ type handler struct {
 
 type Message struct {
 	CharSet   string `json:"charSet,omitempty"`
-	HtmlBody  string `json:"htmlBody,omitempty"`
+	HTMLBody  string `json:"htmlBody,omitempty"`
 	Recipient string `json:"recipient,omitempty"`
 	Sender    string `json:"sender,omitempty"`
 	Subject   string `json:"subject,omitempty"`
@@ -120,7 +120,7 @@ func (h *handler) sendNotification(subject string, body string) error {
 	msg := Message{
 		Subject:  subject,
 		TextBody: body,
-		HtmlBody: fmt.Sprintf("<p>%s</p>", body),
+		HTMLBody: fmt.Sprintf("<p>%s</p>", body),
 	}
 
 	payload, err := json.Marshal(msg)
@@ -175,11 +175,17 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 		return "", fmt.Errorf("error scanning DynamoDB table: %v", err)
 	}
 
+	// Unmarshal items from DynamoDB to ShiftBoard Shift struct list
 	cachedData, err := unmarshalDBItems(dbOutput)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshalling cached data: %v", err)
+	}
 
 	// Write data to DynamoDB table and finish if no cache exists
 	if dbOutput.Count == 0 {
-		h.writeToDB(h.tableName, payload)
+		if err = h.writeToDB(h.tableName, payload); err != nil {
+			return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
+		}
 		return "Success", nil
 	}
 
@@ -189,7 +195,9 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 	}
 
 	// Write new data to DynamoDB table
-	h.writeToDB(h.tableName, payload)
+	if err = h.writeToDB(h.tableName, payload); err != nil {
+		return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
+	}
 
 	// return fmt.Sprintf("Success"), nil
 	return "Success", nil
