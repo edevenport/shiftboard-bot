@@ -1,6 +1,9 @@
 bold := $(shell tput bold)
 sgr0 := $(shell tput sgr0)
 
+build:
+	sam build
+
 test:
 	@printf "$(bold)Running 'functions/retriever' tests$(sgr0)\n"
 	@cd functions/retriever && go test *.go -v
