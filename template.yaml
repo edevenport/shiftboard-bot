@@ -54,6 +54,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref TableNameParameter
+          NOTIFICATION_FUNCTION: !Ref NotificationFunction
       Handler: processor
       Runtime: go1.x
       Architectures:
