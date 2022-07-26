@@ -84,15 +84,17 @@ func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftbo
 		if !exists {
 			subject = fmt.Sprintf("New shift added: %s", shift.Name)
 			msgBody = fmt.Sprintf("Shift has been added for '%s' on %s", shift.Name, shift.Created)
+			if err := h.sendNotification(subject, msgBody); err != nil {
+				return fmt.Errorf("Error sending notification: %v", err)
+			}
 		}
 
 		if updated {
 			subject = fmt.Sprintf("Shift updated: %s", shift.Name)
 			msgBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
-		}
-
-		if err := h.sendNotification(subject, msgBody); err != nil {
-			return fmt.Errorf("Error sending notification: %v", err)
+			if err := h.sendNotification(subject, msgBody); err != nil {
+				return fmt.Errorf("Error sending notification: %v", err)
+			}
 		}
 	}
 
