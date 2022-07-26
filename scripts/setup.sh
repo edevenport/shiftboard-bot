@@ -114,8 +114,8 @@ function add_parameter() {
 function load_seed_vars {
     SHIFTBOARD_USERNAME="${SHIFTBOARD_USERNAME:-testuser}"
     SHIFTBOARD_PASSWORD="${SHIFTBOARD_PASSWORD:-testpassword}"
-    SMTP_SENDER="${SMTP_SENDER:-someone@example.com}"
-    SMTP_RECIPIENT="${SMTP_RECIPIENT:-no-reply@example.com}"
+    SMTP_SENDER="${SMTP_SENDER:-no-reply@example.com}"
+    SMTP_RECIPIENT="${SMTP_RECIPIENT:-someone@example.com}"
 
     if [ -f "${1-}" ]; then
         # shellcheck disable=SC1090
