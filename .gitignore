@@ -20,4 +20,5 @@ dlv
 
 # Misc
 .aws-sam
+**/output.txt
 **/payload.json
