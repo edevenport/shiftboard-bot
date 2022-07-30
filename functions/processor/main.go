@@ -84,36 +84,49 @@ func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftbo
 		if !exists {
 			subject = fmt.Sprintf("New shift added: %s", shift.Name)
 			msgBody = fmt.Sprintf("Shift has been added for '%s' on %s", shift.Name, shift.Created)
+
 			if err := h.sendNotification(subject, msgBody); err != nil {
 				return fmt.Errorf("Error sending notification: %v", err)
 			}
+
+			h.writeItemToDB(h.tableName, shift)
 		}
 
 		if updated {
 			subject = fmt.Sprintf("Shift updated: %s", shift.Name)
 			msgBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
+
 			if err := h.sendNotification(subject, msgBody); err != nil {
 				return fmt.Errorf("Error sending notification: %v", err)
 			}
+
+			h.writeItemToDB(h.tableName, shift)
 		}
 	}
 
 	return nil
 }
 
+func (h *handler) writeItemToDB(tableName string, item shiftboard.Shift) error {
+	av, err := attributevalue.MarshalMap(item)
+	if err != nil {
+		return fmt.Errorf("error marshalling DynamoDB attribuet value map: %v", err)
+	}
+
+	if _, err = h.PutItem(context.TODO(), h.dbClient, tableName, av); err != nil {
+		return fmt.Errorf("error calling DynamoDB PutItem: %v", err)
+	}
+
+	fmt.Printf("Successfully added '%s' to table %s\n", item.Name, tableName)
+
+	return nil
+}
+
 func (h *handler) writeToDB(tableName string, payload []shiftboard.Shift) error {
 	for _, item := range payload {
-		av, err := attributevalue.MarshalMap(item)
-		if err != nil {
-			return fmt.Errorf("error marshalling DynamoDB attribute value map: %v", err)
+		if err := h.writeItemToDB(tableName, item); err != nil {
+			return err
 		}
-
-		_, err = h.PutItem(context.TODO(), h.dbClient, tableName, av)
-		if err != nil {
-			return fmt.Errorf("error calling DynamoDB PutItem: %v", err)
-		}
-
-		fmt.Println("Successfully added '" + item.Name + "' to table " + tableName)
 	}
 
 	return nil
@@ -170,12 +183,6 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 		return "", fmt.Errorf("error comparing new data with cache: %v", err)
 	}
 
-	// Write new data to DynamoDB table
-	if err = h.writeToDB(h.tableName, payload); err != nil {
-		return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
-	}
-
-	// return fmt.Sprintf("Success"), nil
 	return "Success", nil
 }
 
