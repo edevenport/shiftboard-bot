@@ -17,6 +17,8 @@ import (
 	"github.com/edevenport/shiftboard-sdk-go"
 )
 
+const dbPageCount = 1
+
 type handler struct {
 	notificationFunction string
 	tableName            string
@@ -43,6 +45,11 @@ type DynamoDBScanAPI interface {
 	Scan(ctx context.Context,
 		params *dynamodb.ScanInput,
 		optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
+}
+
+type DynamoDBNewScanPaginatorAPI interface {
+	HasMorePages() bool
+	NextPage(context.Context, ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
 }
 
 type LambdaInvokeAPI interface {
@@ -86,10 +93,12 @@ func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftbo
 			msgBody = fmt.Sprintf("Shift has been added for '%s' on %s", shift.Name, shift.Created)
 
 			if err := h.sendNotification(subject, msgBody); err != nil {
-				return fmt.Errorf("Error sending notification: %v", err)
+				return fmt.Errorf("Error sending 'new shift' notification: %v", err)
 			}
 
-			h.writeItemToDB(h.tableName, shift)
+			if err := h.writeItemToDB(h.tableName, shift); err != nil {
+				return fmt.Errorf("Unable to write new shift to DynamoDB: %v", err)
+			}
 		}
 
 		if updated {
@@ -97,10 +106,12 @@ func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftbo
 			msgBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
 
 			if err := h.sendNotification(subject, msgBody); err != nil {
-				return fmt.Errorf("Error sending notification: %v", err)
+				return fmt.Errorf("Error sending 'updated shift' notification: %v", err)
 			}
 
-			h.writeItemToDB(h.tableName, shift)
+			if err := h.writeItemToDB(h.tableName, shift); err != nil {
+				return fmt.Errorf("Unable to write updated shift to DynamoDB: %v", err)
+			}
 		}
 	}
 
@@ -152,34 +163,52 @@ func (h *handler) sendNotification(subject string, body string) error {
 	return nil
 }
 
+func (h *handler) scanPages(ctx context.Context, pager DynamoDBNewScanPaginatorAPI) ([]shiftboard.Shift, error) {
+	var list []shiftboard.Shift
+	page := 1
+
+	for pager.HasMorePages() {
+		fmt.Println("page ", page)
+		output, err := pager.NextPage(ctx)
+		if err != nil {
+			return list, err
+		}
+
+		var pItems []shiftboard.Shift
+		err = attributevalue.UnmarshalListOfMaps(output.Items, &pItems)
+		if err != nil {
+			return list, err
+		}
+
+		list = append(list, pItems...)
+		page++
+	}
+	return list, nil
+}
+
 func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift) (string, error) {
-	// End function runtime if payload is empty
-	if len(payload) == 0 {
-		return "", fmt.Errorf("function payload is empty")
-	}
+	// Initialize DynamoDB scan paginator
+	p := dynamodb.NewScanPaginator(h.dbClient, &dynamodb.ScanInput{
+		TableName: aws.String(h.tableName),
+		Limit:     aws.Int32(dbPageCount),
+	})
 
-	// Read existing items from DynamoDB table
-	dbOutput, err := h.Scan(context.TODO(), h.dbClient, h.tableName)
+	// Read existing cached data from DynamoDB table
+	cachedData, err := h.scanPages(context.TODO(), p)
 	if err != nil {
-		return "", fmt.Errorf("error scanning DynamoDB table: %v", err)
-	}
-
-	// Unmarshal DynamoDB items to ShiftBoard Shift objects
-	cachedData, err := unmarshalDBItems(dbOutput)
-	if err != nil {
-		return "", fmt.Errorf("error unmarshalling cached data: %v", err)
+		return "", fmt.Errorf("error reading data from DynamoDB table: %v", err)
 	}
 
 	// Write data to DynamoDB table and finish if no cache exists
-	if dbOutput.Count == 0 {
-		if err = h.writeToDB(h.tableName, payload); err != nil {
+	if len(cachedData) == 0 {
+		if err := h.writeToDB(h.tableName, payload); err != nil {
 			return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
 		}
 		return "Success", nil
 	}
 
 	// Compare new data with cached data and send notifications on new and updated items
-	if err = h.compareData(&payload, &cachedData); err != nil {
+	if err := h.compareData(&payload, &cachedData); err != nil {
 		return "", fmt.Errorf("error comparing new data with cache: %v", err)
 	}
 
@@ -201,16 +230,6 @@ func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) (exists bool, u
 	}
 
 	return exists, updated
-}
-
-func unmarshalDBItems(cachedData *dynamodb.ScanOutput) ([]shiftboard.Shift, error) {
-	items := []shiftboard.Shift{}
-
-	if err := attributevalue.UnmarshalListOfMaps(cachedData.Items, &items); err != nil {
-		return nil, fmt.Errorf("error unmarshalling DynamoDB list of maps: %v", err)
-	}
-
-	return items, nil
 }
 
 func getEnv(key, fallback string) string {

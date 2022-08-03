@@ -16,6 +16,11 @@ function random_item_id() {
 
     item_list=$(aws dynamodb scan --table-name "$TABLE_NAME" --endpoint-url "$ENDPOINT_URL")
     item_count=$(jq '.Items | length' <<< "$item_list")
+
+    if [ "$item_count" -eq 0 ]; then
+        exit 1
+    fi
+
     rand="$((RANDOM % item_count + 1 ))"
 
     jq -r ".Items[$rand] | .ID.S" <<< "$item_list"
@@ -37,7 +42,7 @@ function invoke_function() {
         --endpoint-url "$ENDPOINT_URL" \
         "$OUT_FILE")
 
-    read -r status_code log_result <<< "$(echo $output | \
+    read -r status_code log_result <<< "$(echo "$output" | \
         jq -r '. | [.StatusCode, .LogResult] | @tsv')"
 
     content=$(cat $OUT_FILE)
