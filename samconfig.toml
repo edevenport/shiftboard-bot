@@ -1,8 +1,8 @@
 version=0.1
 [default.global.parameters]
 stack_name = "shiftboard-bot"
+s3_bucket = "shiftboard-bot"
 
 [default.deploy.parameters]
-s3_bucket = "shiftboard-bot"
 region = "us-west-2"
 tags = "project=\"shiftboard-bot\""
