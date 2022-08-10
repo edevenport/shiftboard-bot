@@ -163,9 +163,20 @@ function run_test() {
     check_message "$shift_name"
 }
 
+function stack_created() {
+    aws cloudformation describe-stacks \
+        --endpoint-url "$ENDPOINT_URL" | \
+        jq -e '.Stacks[0].StackStatus'
+}
+
 function main() {
     samlocal build
-    samlocal deploy --no-progressbar
+
+    if ! stack_created; then
+        samlocal deploy --no-progressbar
+    else
+        samlocal package
+    fi
 
     echo "Retrieve Lambda function name"
     function_name=$(get_function_name)
