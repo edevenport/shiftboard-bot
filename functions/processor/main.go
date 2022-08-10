@@ -6,18 +6,19 @@ import (
 	"fmt"
 	"os"
 
-	runtime "github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	dbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
-	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/edevenport/shiftboard-sdk-go"
+
+	runtime "github.com/aws/aws-lambda-go/lambda"
+	dbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 )
 
-const dbPageCount = 1
+const dbPageCount = 20
 
 type handler struct {
 	notificationFunction string
@@ -26,7 +27,12 @@ type handler struct {
 	lambdaClient         *lambda.Client
 }
 
-type Message struct {
+type diff struct {
+	State string
+	Shift shiftboard.Shift
+}
+
+type message struct {
 	CharSet   string `json:"charSet,omitempty"`
 	HTMLBody  string `json:"htmlBody,omitempty"`
 	Recipient string `json:"recipient,omitempty"`
@@ -39,12 +45,6 @@ type DynamoDBPutItemAPI interface {
 	PutItem(ctx context.Context,
 		params *dynamodb.PutItemInput,
 		optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
-}
-
-type DynamoDBScanAPI interface {
-	Scan(ctx context.Context,
-		params *dynamodb.ScanInput,
-		optFns ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
 }
 
 type DynamoDBNewScanPaginatorAPI interface {
@@ -65,13 +65,6 @@ func (h *handler) PutItem(ctx context.Context, api DynamoDBPutItemAPI, tableName
 	})
 }
 
-func (h *handler) Scan(ctx context.Context, api DynamoDBScanAPI, tableName string) (*dynamodb.ScanOutput, error) {
-	return api.Scan(ctx, &dynamodb.ScanInput{
-		TableName: aws.String(tableName),
-		Limit:     aws.Int32(500),
-	})
-}
-
 func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName string, payload []byte) (*lambda.InvokeOutput, error) {
 	return api.Invoke(ctx, &lambda.InvokeInput{
 		FunctionName:   aws.String(functionName),
@@ -80,51 +73,29 @@ func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName 
 	})
 }
 
-func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftboard.Shift) error {
+func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftboard.Shift) (changeLog []diff) {
 	for i := 0; i < len(*newData); i++ {
 		shift := (*newData)[i]
-		exists, updated := getState(shift, cachedData)
+		diff := diff{}
 
-		var subject string
-		var msgBody string
-
-		if !exists {
-			subject = fmt.Sprintf("New shift added: %s", shift.Name)
-			msgBody = fmt.Sprintf("Shift has been added for '%s' on %s", shift.Name, shift.Created)
-
-			if err := h.sendNotification(subject, msgBody); err != nil {
-				return fmt.Errorf("Error sending 'new shift' notification: %v", err)
-			}
-
-			if err := h.writeItemToDB(h.tableName, shift); err != nil {
-				return fmt.Errorf("Unable to write new shift to DynamoDB: %v", err)
-			}
-		}
-
-		if updated {
-			subject = fmt.Sprintf("Shift updated: %s", shift.Name)
-			msgBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
-
-			if err := h.sendNotification(subject, msgBody); err != nil {
-				return fmt.Errorf("Error sending 'updated shift' notification: %v", err)
-			}
-
-			if err := h.writeItemToDB(h.tableName, shift); err != nil {
-				return fmt.Errorf("Unable to write updated shift to DynamoDB: %v", err)
-			}
+		if state := getState(shift, cachedData); state != "" {
+			diff.State = state
+			diff.Shift = shift
+			changeLog = append(changeLog, diff)
 		}
 	}
 
-	return nil
+	return changeLog
 }
 
 func (h *handler) writeItemToDB(tableName string, item shiftboard.Shift) error {
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
-		return fmt.Errorf("error marshalling DynamoDB attribuet value map: %v", err)
+		return fmt.Errorf("error marshalling DynamoDB attribute value map: %v", err)
 	}
 
-	if _, err = h.PutItem(context.TODO(), h.dbClient, tableName, av); err != nil {
+	_, err = h.PutItem(context.TODO(), h.dbClient, tableName, av)
+	if err != nil {
 		return fmt.Errorf("error calling DynamoDB PutItem: %v", err)
 	}
 
@@ -133,7 +104,7 @@ func (h *handler) writeItemToDB(tableName string, item shiftboard.Shift) error {
 	return nil
 }
 
-func (h *handler) writeToDB(tableName string, payload []shiftboard.Shift) error {
+func (h *handler) writeAllToDB(tableName string, payload []shiftboard.Shift) error {
 	for _, item := range payload {
 		if err := h.writeItemToDB(tableName, item); err != nil {
 			return err
@@ -143,13 +114,7 @@ func (h *handler) writeToDB(tableName string, payload []shiftboard.Shift) error 
 	return nil
 }
 
-func (h *handler) sendNotification(subject string, body string) error {
-	msg := Message{
-		Subject:  subject,
-		TextBody: body,
-		HTMLBody: fmt.Sprintf("<p>%s</p>", body),
-	}
-
+func (h *handler) sendNotification(msg message) error {
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("error marshalling message payload: %v", err)
@@ -169,6 +134,7 @@ func (h *handler) scanPages(ctx context.Context, pager DynamoDBNewScanPaginatorA
 
 	for pager.HasMorePages() {
 		fmt.Println("page ", page)
+
 		output, err := pager.NextPage(ctx)
 		if err != nil {
 			return list, err
@@ -201,27 +167,52 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 
 	// Write data to DynamoDB table and finish if no cache exists
 	if len(cachedData) == 0 {
-		if err := h.writeToDB(h.tableName, payload); err != nil {
+		if err := h.writeAllToDB(h.tableName, payload); err != nil {
 			return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
 		}
 		return "Success", nil
 	}
 
-	// Compare new data with cached data and send notifications on new and updated items
-	if err := h.compareData(&payload, &cachedData); err != nil {
-		return "", fmt.Errorf("error comparing new data with cache: %v", err)
+	for _, item := range h.compareData(&payload, &cachedData) {
+		msg := constructMessage(item)
+
+		if err := h.sendNotification(msg); err != nil {
+			return "", fmt.Errorf("error sending notification: %v", err)
+		}
+
+		if err := h.writeItemToDB(h.tableName, item.Shift); err != nil {
+			return "", fmt.Errorf("error writing shift to DynamoDB: %v", err)
+		}
 	}
 
 	return "Success", nil
 }
 
-func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) (exists bool, updated bool) {
-	exists = false
-	updated = false
+func constructMessage(item diff) (msg message) {
+	shift := item.Shift
+
+	if item.State == "created" {
+		msg.Subject = fmt.Sprintf("New shift added: %s", shift.Name)
+		msg.TextBody = fmt.Sprintf("Shift has been added for '%s' on %s", shift.Name, shift.Created)
+	}
+
+	if item.State == "updated" {
+		msg.Subject = fmt.Sprintf("Shift updated: %s", shift.Name)
+		msg.TextBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
+	}
+
+	msg.HTMLBody = fmt.Sprintf("<p>%s</p>", msg.TextBody)
+
+	return msg
+}
+
+func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) string {
+	found := false
+	updated := false
 
 	for _, c := range *cache {
 		if c.ID == shift.ID {
-			exists = true
+			found = true
 			if c.Updated.Before(shift.Updated) {
 				updated = true
 			}
@@ -229,7 +220,15 @@ func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) (exists bool, u
 		}
 	}
 
-	return exists, updated
+	if !found {
+		return "created"
+	}
+
+	if updated {
+		return "updated"
+	}
+
+	return ""
 }
 
 func getEnv(key, fallback string) string {
