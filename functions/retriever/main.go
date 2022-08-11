@@ -117,9 +117,9 @@ func apiLogin(email string, password string) (*shiftboard.Client, error) {
 func readFromAPI(client *shiftboard.Client) (*[]shiftboard.Shift, error) {
 	currentTime := time.Now()
 
-	// From one month prior to six months ahead
-	startDate := currentTime.AddDate(0, -1, 0).Format(time.RFC3339)
-	endDate := currentTime.AddDate(0, 6, 0).Format(time.RFC3339)
+	// From one month prior to six months ahead of now
+	startDate := currentTime.AddDate(0, -1, 0).Format("2006-01-02")
+	endDate := currentTime.AddDate(0, 6, 0).Format("2006-01-02")
 
 	// Fetch list of shifts from API
 	resp, err := client.ListShifts(startDate, endDate)
