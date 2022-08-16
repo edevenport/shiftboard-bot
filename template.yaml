@@ -28,6 +28,9 @@ Resources:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
       TableName: !Ref TableNameParameter
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
 
   RetrieverFunction:
     Type: AWS::Serverless::Function
@@ -38,6 +41,8 @@ Resources:
           PROCESSOR_FUNCTION: !Ref ProcessorFunction
           NOTIFICATION_FUNCTION: !Ref NotificationFunction
       Handler: retriever
+      MemorySize: 128
+      Timeout: 10
       Runtime: go1.x
       Architectures:
         - x86_64
@@ -56,6 +61,8 @@ Resources:
           TABLE_NAME: !Ref TableNameParameter
           NOTIFICATION_FUNCTION: !Ref NotificationFunction
       Handler: processor
+      MemorySize: 128
+      Timeout: 10
       Runtime: go1.x
       Architectures:
         - x86_64
@@ -70,6 +77,8 @@ Resources:
     Properties:
       CodeUri: functions/notification
       Handler: notification
+      MemorySize: 128
+      Timeout: 10
       Runtime: go1.x
       Architectures:
         - x86_64
