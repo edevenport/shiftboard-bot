@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -18,7 +19,10 @@ import (
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 )
 
-const dbPageCount = 20
+const (
+	dbPageCount  = 100
+	dbBatchCount = 25
+)
 
 type handler struct {
 	notificationFunction string
@@ -30,6 +34,11 @@ type handler struct {
 type diff struct {
 	State string
 	Shift shiftboard.Shift
+}
+
+type ShiftExt struct {
+	shiftboard.Shift
+	TTL int64
 }
 
 type message struct {
@@ -47,6 +56,12 @@ type DynamoDBPutItemAPI interface {
 		optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 }
 
+type DynamoDBBatchWriteItemAPI interface {
+	BatchWriteItem(ctx context.Context,
+		params *dynamodb.BatchWriteItemInput,
+		optFns ...func(*dynamodb.Options)) (*dynamodb.BatchWriteItemOutput, error)
+}
+
 type DynamoDBNewScanPaginatorAPI interface {
 	HasMorePages() bool
 	NextPage(context.Context, ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
@@ -62,6 +77,12 @@ func (h *handler) PutItem(ctx context.Context, api DynamoDBPutItemAPI, tableName
 	return api.PutItem(ctx, &dynamodb.PutItemInput{
 		Item:      item,
 		TableName: aws.String(tableName),
+	})
+}
+
+func (h *handler) BatchWriteItem(ctx context.Context, api DynamoDBBatchWriteItemAPI, requestItems map[string][]dbtypes.WriteRequest) (*dynamodb.BatchWriteItemOutput, error) {
+	return api.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+		RequestItems: requestItems,
 	})
 }
 
@@ -89,7 +110,9 @@ func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftbo
 }
 
 func (h *handler) writeItemToDB(tableName string, item shiftboard.Shift) error {
-	av, err := attributevalue.MarshalMap(item)
+	itemExt := addItemTTL(item)
+
+	av, err := attributevalue.MarshalMap(itemExt)
 	if err != nil {
 		return fmt.Errorf("error marshalling DynamoDB attribute value map: %v", err)
 	}
@@ -99,15 +122,54 @@ func (h *handler) writeItemToDB(tableName string, item shiftboard.Shift) error {
 		return fmt.Errorf("error calling DynamoDB PutItem: %v", err)
 	}
 
-	fmt.Printf("Successfully added '%s' to table %s\n", item.Name, tableName)
+	fmt.Printf("Successfully added '%s' to table %s\n", itemExt.Name, tableName)
+
+	return nil
+}
+
+func (h *handler) writePayloadBatch(payload []shiftboard.Shift) error {
+	writeRequestList := []dbtypes.WriteRequest{}
+
+	for _, item := range payload {
+		writeRequest, err := constructWriteRequest(item)
+		if err != nil {
+			return fmt.Errorf("unable to construct batch write request: %v", err)
+		}
+
+		writeRequestList = append(writeRequestList, *writeRequest)
+	}
+
+	batchRequest := map[string][]dbtypes.WriteRequest{h.tableName: writeRequestList}
+
+	output, err := h.BatchWriteItem(context.TODO(), h.dbClient, batchRequest)
+	if err != nil {
+		return fmt.Errorf("error writing batch items to DynamoDB: %v", err)
+	}
+
+	fmt.Printf("BatchWriteItem Output: %+v\n", output)
+
+	if len(output.UnprocessedItems) != 0 {
+		return fmt.Errorf("identified unprocessed batch items")
+	}
 
 	return nil
 }
 
 func (h *handler) writeAllToDB(tableName string, payload []shiftboard.Shift) error {
-	for _, item := range payload {
-		if err := h.writeItemToDB(tableName, item); err != nil {
-			return err
+	fmt.Printf("Total item count: %d\n", len(payload))
+	batch := dbBatchCount
+
+	for start := 0; start < len(payload); start += batch {
+		end := start + batch
+		if end > len(payload) {
+			end = len(payload)
+		}
+
+		fmt.Printf("Batch item count: %d\n", len(payload[start:end]))
+
+		err := h.writePayloadBatch(payload[start:end])
+		if err != nil {
+			return fmt.Errorf("error writing batch payload")
 		}
 	}
 
@@ -188,6 +250,21 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 	return "Success", nil
 }
 
+func constructWriteRequest(item shiftboard.Shift) (*dbtypes.WriteRequest, error) {
+	itemExt := addItemTTL(item)
+
+	av, err := attributevalue.MarshalMap(itemExt)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal map to DynamoDB attribute values: %v", err)
+	}
+
+	return &dbtypes.WriteRequest{
+		PutRequest: &dbtypes.PutRequest{
+			Item: av,
+		},
+	}, nil
+}
+
 func constructMessage(item diff) (msg message) {
 	shift := item.Shift
 
@@ -231,10 +308,26 @@ func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) string {
 	return ""
 }
 
+func addItemTTL(item shiftboard.Shift) ShiftExt {
+	// Fix date string and convert to time.Time type
+	endDate, _ := time.Parse(time.RFC3339, item.EndDate+"Z")
+
+	// Set DynamoDB TTL one month after the shift end date
+	ttl := endDate.AddDate(0, 1, 0)
+
+	// Extend shift object with TTL field
+	var shift ShiftExt
+	shift.Shift = item
+	shift.TTL = ttl.Unix()
+
+	return shift
+}
+
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
+
 	return fallback
 }
 

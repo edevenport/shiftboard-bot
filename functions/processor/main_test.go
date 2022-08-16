@@ -369,6 +369,19 @@ func TestGetEnv(t *testing.T) {
 	}
 }
 
+func TestAddItemTTL(t *testing.T) {
+	expect := int64(1657886400)
+	result := addItemTTL(mockShift())
+
+	if (ShiftExt{} == result) {
+		t.Errorf("expect struct not to be empty")
+	}
+
+	if e, a := expect, result.TTL; e != a {
+		t.Errorf("expect %v, got %v", e, a)
+	}
+}
+
 func mockEnv() {
 	err := os.Setenv("MOCK_ENV", "test")
 	if err != nil {
@@ -391,14 +404,14 @@ func (m *MockItem) New() *MockItem {
 
 	m.ID = randomID()
 	m.Name = randomString()
+	m.StartDate = "2022-06-15T12:00:00"
+	m.EndDate = "2022-06-15T12:00:00"
 	m.Created = createTime
 	m.Updated = updateTime
 
 	return m
 }
 
-// Create mock cache with single item where Updated date is set to one month prior
-// to mimic an Update event.
 func mockShift() shiftboard.Shift {
 	item := &MockItem{&shiftboard.Shift{}}
 	item.New()
