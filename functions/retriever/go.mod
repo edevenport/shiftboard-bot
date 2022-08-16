@@ -2,15 +2,13 @@ module main
 
 go 1.18
 
-replace github.com/edevenport/shiftboard-sdk-go => /Users/ethand/go/src/github.com/edevenport/shiftboard-sdk-go
-
 require (
 	github.com/aws/aws-lambda-go v1.33.0
 	github.com/aws/aws-sdk-go-v2 v1.16.7
 	github.com/aws/aws-sdk-go-v2/config v1.15.14
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.4
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.27.4
-	github.com/edevenport/shiftboard-sdk-go v0.0.0-00010101000000-000000000000
+	github.com/edevenport/shiftboard-sdk-go v0.0.0-20220816190702-880d2edd18e6
 )
 
 require (

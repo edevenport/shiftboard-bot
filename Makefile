@@ -14,7 +14,7 @@ test:
 
 lint:
 	yamllint template.yaml
-	sam validate
+	# sam validate
 	@printf "$(bold)golangci-run 'functions/retriever'$(sgr0)\n"
 	@cd functions/retriever && golangci-lint run
 	@printf "$(bold)golangci-run 'functions/processor'$(sgr0)\n"
