@@ -62,7 +62,7 @@ function invoke_function() {
         printf "%s%s%s\n" "$RED" "$content" "$NOCOLOR"
     fi
 
-    sleep 5
+    sleep 10
 }
 
 function wait_for_messages() {
@@ -166,7 +166,7 @@ function run_test() {
 function stack_created() {
     aws cloudformation describe-stacks \
         --endpoint-url "$ENDPOINT_URL" | \
-        jq -e '.Stacks[0].StackStatus'
+        jq -e '.Stacks[0].StackStatus' > /dev/null 2>&1
 }
 
 function main() {
