@@ -38,7 +38,7 @@ Resources:
       CodeUri: functions/retriever
       Environment:
         Variables:
-          PROCESSOR_FUNCTION: !Ref ProcessorFunction
+          WORKER_FUNCTION: !Ref WorkerFunction
           NOTIFICATION_FUNCTION: !Ref NotificationFunction
       Handler: retriever
       MemorySize: 128
@@ -48,19 +48,19 @@ Resources:
         - x86_64
       Policies:
         - LambdaInvokePolicy:
-            FunctionName: !Ref ProcessorFunction
+            FunctionName: !Ref WorkerFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref NotificationFunction
 
-  ProcessorFunction:
+  WorkerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: functions/processor
+      CodeUri: functions/worker
       Environment:
         Variables:
           TABLE_NAME: !Ref TableNameParameter
           NOTIFICATION_FUNCTION: !Ref NotificationFunction
-      Handler: processor
+      Handler: worker
       MemorySize: 128
       Timeout: 10
       Runtime: go1.x
@@ -97,9 +97,9 @@ Outputs:
     Description: Retriever function name
     Value: !Ref RetrieverFunction
 
-  ProcessorFunctionName:
-    Description: Processor function name
-    Value: !Ref ProcessorFunction
+  WorkerFunctionName:
+    Description: Worker function name
+    Value: !Ref WorkerFunction
 
   NotificationFunctionName:
     Description: Notification function name

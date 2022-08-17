@@ -18,7 +18,7 @@ import (
 )
 
 type handler struct {
-	processorFunction    string
+	workerFunction       string
 	notificationFunction string
 	ssmClient            *ssm.Client
 	lambdaClient         *lambda.Client
@@ -84,9 +84,9 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error marshalling ShiftBoard API data: %v", err)
 	}
 
-	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.processorFunction, jsonData)
+	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.workerFunction, jsonData)
 	if err != nil {
-		return "", fmt.Errorf("error invoking function '%v': %v", h.processorFunction, err)
+		return "", fmt.Errorf("error invoking function '%v': %v", h.workerFunction, err)
 	}
 
 	return "Success", nil
@@ -156,7 +156,7 @@ func main() {
 	}
 
 	h := handler{
-		processorFunction:    getEnv("PROCESSOR_FUNCTION", "ProcessorFunction"),
+		workerFunction:       getEnv("WORKER_FUNCTION", "WorkerFunction"),
 		notificationFunction: getEnv("NOTIFICATION_FUNCTION", "NotificationFunction"),
 		ssmClient:            ssm.NewFromConfig(cfg),
 		lambdaClient:         lambda.NewFromConfig(cfg),
