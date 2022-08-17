@@ -227,7 +227,7 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 		return "", fmt.Errorf("error reading data from DynamoDB table: %v", err)
 	}
 
-	// Write data to DynamoDB table and finish if no cache exists
+	// Write payload to DynamoDB table if no cache already exists and finish
 	if len(cachedData) == 0 {
 		if err := h.writeAllToDB(h.tableName, payload); err != nil {
 			return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
@@ -235,6 +235,7 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 		return "Success", nil
 	}
 
+	// Compare payload with enteries cached in DynamoDB
 	for _, item := range h.compareData(&payload, &cachedData) {
 		msg := constructMessage(item)
 
