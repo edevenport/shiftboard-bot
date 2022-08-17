@@ -128,7 +128,7 @@ Resources:
 Outputs:
   RetrieverFunctionName:
     Description: Retriever function name
-    Value: 
+    Value:
       Ref: RetrieverFunction
 
   WorkerFunctionName:
