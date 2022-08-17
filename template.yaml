@@ -7,10 +7,11 @@ Description: >
 Parameters:
   TableNameParameter:
     Type: String
-    Default: ShiftBoard
-  # EmailIdentityParameter:
-  #   Type: String
   DomainIdentityParameter:
+    Type: String
+  SSMAPIParameter:
+    Type: String
+  SSMNotificationsParameter:
     Type: String
 
 Resources:
@@ -27,7 +28,8 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
-      TableName: !Ref TableNameParameter
+      TableName:
+        Ref: TableNameParameter
       TimeToLiveSpecification:
         AttributeName: TTL
         Enabled: true
@@ -38,8 +40,10 @@ Resources:
       CodeUri: functions/retriever
       Environment:
         Variables:
-          WORKER_FUNCTION: !Ref WorkerFunction
-          NOTIFICATION_FUNCTION: !Ref NotificationFunction
+          WORKER_FUNCTION:
+            Ref: WorkerFunction
+          NOTIFICATION_FUNCTION:
+            Ref: NotificationFunction
       Handler: retriever
       MemorySize: 128
       Timeout: 10
@@ -48,9 +52,11 @@ Resources:
         - x86_64
       Policies:
         - LambdaInvokePolicy:
-            FunctionName: !Ref WorkerFunction
+            FunctionName:
+              Ref: WorkerFunction
         - LambdaInvokePolicy:
-            FunctionName: !Ref NotificationFunction
+            FunctionName:
+              Ref: NotificationFunction
 
   WorkerFunction:
     Type: AWS::Serverless::Function
@@ -58,8 +64,10 @@ Resources:
       CodeUri: functions/worker
       Environment:
         Variables:
-          TABLE_NAME: !Ref TableNameParameter
-          NOTIFICATION_FUNCTION: !Ref NotificationFunction
+          TABLE_NAME:
+            Ref: TableNameParameter
+          NOTIFICATION_FUNCTION:
+            Ref: NotificationFunction
       Handler: worker
       MemorySize: 128
       Timeout: 10
@@ -68,9 +76,11 @@ Resources:
         - x86_64
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref DatabaseTable
+            TableName:
+              Ref: DatabaseTable
         - LambdaInvokePolicy:
-            FunctionName: !Ref NotificationFunction
+            FunctionName:
+              Ref: NotificationFunction
 
   NotificationFunction:
     Type: AWS::Serverless::Function
@@ -84,23 +94,49 @@ Resources:
         - x86_64
       Policies:
         - SESCrudPolicy:
-            IdentityName: !Ref DomainIdentityParameter
+            IdentityName:
+              Ref: DomainIdentityParameter
 
-#   SenderEmailIdentity:
-#     Type: AWS::SES::EmailIdentity
-#     Properties:
-#       EmailIdentity: !Ref EmailIdentityParameter
-#
+  RetrieverFunctionSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: "rate(1 minute)"
+      State: ENABLED
+      Targets:
+        - Arn:
+            Fn::GetAtt:
+              - RetrieverFunction
+              - Arn
+          Id: RetrieverFunctionV1
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName:
+              Ref: NotificationFunction
+
+  # PermissionForEventsToInvokeLambda:
+  #  Type: AWS::Lambda::Permission
+  #  Properties:
+  #    FunctionName:
+  #      Ref: RetrieverFunction
+  #    Action: "lambda:InvokeFunction"
+  #    Principal: events.amazonaws.com
+  #    SourceArn:
+  #      Fn::GetAtt:
+  #        - RetrieverFunctionSchedule
+  #        - Arn
 
 Outputs:
   RetrieverFunctionName:
     Description: Retriever function name
-    Value: !Ref RetrieverFunction
+    Value: 
+      Ref: RetrieverFunction
 
   WorkerFunctionName:
     Description: Worker function name
-    Value: !Ref WorkerFunction
+    Value:
+      Ref: WorkerFunction
 
   NotificationFunctionName:
     Description: Notification function name
-    Value: !Ref NotificationFunction
+    Value:
+      Ref: NotificationFunction
