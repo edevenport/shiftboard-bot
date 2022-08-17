@@ -25,9 +25,9 @@ jobs:
         run: go test -v *.go
         working-directory: ./functions/retriever
 
-      - name: Test processor
+      - name: Test worker
         run: go test -v *.go
-        working-directory: ./functions/processor
+        working-directory: ./functions/worker
 
       - name: Test notification
         run: go test -v *.go
@@ -56,11 +56,11 @@ jobs:
           version: v1.48.0
           working-directory: ./functions/retriever
 
-      - name: Lint processor
+      - name: Lint worker
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.48.0
-          working-directory: ./functions/processor
+          working-directory: ./functions/worker
 
       - name: Lint notification
         uses: golangci/golangci-lint-action@v3
