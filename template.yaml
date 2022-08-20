@@ -1,18 +1,40 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
+
 Description: >
   SAM template for shiftboard-bot
 
 Parameters:
-  TableNameParameter:
+  AppName:
     Type: String
-  DomainIdentityParameter:
+    Default: shiftboard-bot
+  Env:
     Type: String
-  SSMAPIParameter:
+    AllowedValues:
+      - dev
+      - test
+      - prod
+  TableName:
     Type: String
-  SSMNotificationsParameter:
+    Default: shiftboard-bot
+  SSMAPIParameterPath:
     Type: String
+    Default: "shiftboard/api"
+  SSMNotificationsParameterPath:
+    Type: String
+    Default: "shiftboard/notifications"
+
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: go1.x
+    MemorySize: 128
+    Tags:
+      app:
+        Ref: AppName
+      env:
+        Ref: Env
 
 Resources:
   DatabaseTable:
@@ -26,10 +48,17 @@ Resources:
         - AttributeName: ID
           KeyType: HASH
       ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
+        ReadCapacityUnits: 10
+        WriteCapacityUnits: 10
+      Tags:
+        - Key: app
+          Value:
+            Ref: AppName
+        - Key: env
+          Value:
+            Ref: Env
       TableName:
-        Ref: TableNameParameter
+        Ref: TableName
       TimeToLiveSpecification:
         AttributeName: TTL
         Enabled: true
@@ -46,17 +75,18 @@ Resources:
             Ref: NotificationFunction
       Handler: retriever
       MemorySize: 128
-      Timeout: 10
-      Runtime: go1.x
       Architectures:
         - x86_64
       Policies:
         - LambdaInvokePolicy:
             FunctionName:
-              Ref: WorkerFunction
+              Ref: NotificationFunction
         - LambdaInvokePolicy:
             FunctionName:
-              Ref: NotificationFunction
+              Ref: WorkerFunction
+        - SSMParameterReadPolicy:
+            ParameterName:
+              Ref: SSMAPIParameterPath
 
   WorkerFunction:
     Type: AWS::Serverless::Function
@@ -65,13 +95,10 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME:
-            Ref: TableNameParameter
+            Ref: TableName
           NOTIFICATION_FUNCTION:
             Ref: NotificationFunction
       Handler: worker
-      MemorySize: 128
-      Timeout: 10
-      Runtime: go1.x
       Architectures:
         - x86_64
       Policies:
@@ -88,14 +115,14 @@ Resources:
       CodeUri: functions/notification
       Handler: notification
       MemorySize: 128
-      Timeout: 10
-      Runtime: go1.x
       Architectures:
         - x86_64
       Policies:
         - SESCrudPolicy:
-            IdentityName:
-              Ref: DomainIdentityParameter
+            IdentityName: "*"
+        - SSMParameterReadPolicy:
+            ParameterName:
+              Ref: SSMNotificationsParameterPath
 
   RetrieverFunctionSchedule:
     Type: AWS::Events::Rule
@@ -108,22 +135,18 @@ Resources:
               - RetrieverFunction
               - Arn
           Id: RetrieverFunctionV1
-      Policies:
-        - LambdaInvokePolicy:
-            FunctionName:
-              Ref: NotificationFunction
 
-  # PermissionForEventsToInvokeLambda:
-  #  Type: AWS::Lambda::Permission
-  #  Properties:
-  #    FunctionName:
-  #      Ref: RetrieverFunction
-  #    Action: "lambda:InvokeFunction"
-  #    Principal: events.amazonaws.com
-  #    SourceArn:
-  #      Fn::GetAtt:
-  #        - RetrieverFunctionSchedule
-  #        - Arn
+  RetrieverInvokePermission:
+   Type: AWS::Lambda::Permission
+   Properties:
+     FunctionName:
+       Ref: RetrieverFunction
+     Action: "lambda:InvokeFunction"
+     Principal: events.amazonaws.com
+     SourceArn:
+       Fn::GetAtt:
+         - RetrieverFunctionSchedule
+         - Arn
 
 Outputs:
   RetrieverFunctionName:
