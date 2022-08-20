@@ -169,7 +169,7 @@ func (h *handler) writeAllToDB(tableName string, payload []shiftboard.Shift) err
 
 		err := h.writePayloadBatch(payload[start:end])
 		if err != nil {
-			return fmt.Errorf("error writing batch payload")
+			return fmt.Errorf("error writing batch payload: %v", err)
 		}
 	}
 
