@@ -4,6 +4,10 @@ set -euo pipefail
 # Start Localstack and seed with data for testing. Optional seed file 
 # can be passed as an argument to override defaults.
 
+# Global variables
+APP_NAME="shiftboard-bot"
+ENV="test"
+
 # AWS environment variables
 AWS_REGION="us-west-2"
 AWS_S3_BUCKET="shiftboard-bot"
@@ -74,6 +78,13 @@ function create_bucket() {
             --bucket "$AWS_S3_BUCKET" \
             --create-bucket-configuration LocationConstraint="$AWS_REGION" \
             --endpoint-url "$AWS_ENDPOINT_URL"
+
+        tags="TagSet=[{Key=App,Value=${APP_NAME}},{Key=Environment,Value=${ENV}}]"
+
+        aws s3api put-bucket-tagging \
+            --bucket "$AWS_S3_BUCKET" \
+            --tagging "$tags" \
+            --endpoint-url "$AWS_ENDPOINT_URL"
     fi
 }
 
@@ -90,7 +101,7 @@ function add_parameter() {
         put-parameter
         --name "$1"
         --value "$2"
-        --overwrite
+	--overwrite
         --endpoint-url "$AWS_ENDPOINT_URL"
     )
 
