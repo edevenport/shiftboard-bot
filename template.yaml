@@ -137,16 +137,16 @@ Resources:
           Id: RetrieverFunctionV1
 
   RetrieverInvokePermission:
-   Type: AWS::Lambda::Permission
-   Properties:
-     FunctionName:
-       Ref: RetrieverFunction
-     Action: "lambda:InvokeFunction"
-     Principal: events.amazonaws.com
-     SourceArn:
-       Fn::GetAtt:
-         - RetrieverFunctionSchedule
-         - Arn
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: RetrieverFunction
+      Action: "lambda:InvokeFunction"
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+          - RetrieverFunctionSchedule
+          - Arn
 
 Outputs:
   RetrieverFunctionName:
