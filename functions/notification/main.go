@@ -2,17 +2,21 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
-	runtime "github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+
+	runtime "github.com/aws/aws-lambda-go/lambda"
 )
+
+const charSet = "UTF-8"
 
 type handler struct {
 	sesClient *ses.Client
@@ -20,96 +24,62 @@ type handler struct {
 }
 
 type Message struct {
-	CharSet   string `json:"charSet,omitempty"`
-	HtmlBody  string `json:"htmlBody,omitempty"`
-	Recipient string `json:"recipient,omitempty"`
-	Sender    string `json:"sender,omitempty"`
-	Subject   string `json:"subject,omitempty"`
-	TextBody  string `json:"textBody,omitempty"`
+	HtmlBody string `json:"htmlBody,omitempty"`
+	Subject  string `json:"subject,omitempty"`
+	TextBody string `json:"textBody,omitempty"`
 }
 
-type SendEmailAPI interface {
+type SESSendEmailAPI interface {
 	SendEmail(ctx context.Context,
 		params *ses.SendEmailInput,
 		optFns ...func(*ses.Options)) (*ses.SendEmailOutput, error)
 }
 
-type SSMGetParametersAPI interface {
+type SSMGetParametersByPathAPI interface {
 	GetParametersByPath(ctx context.Context,
 		params *ssm.GetParametersByPathInput,
 		optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
 }
 
-func SendEmail(ctx context.Context, api SendEmailAPI, input *ses.SendEmailInput) (*ses.SendEmailOutput, error) {
-	return api.SendEmail(ctx, input)
-}
-
-func GetParametersByPath(ctx context.Context, api SSMGetParametersAPI, input *ssm.GetParametersByPathInput) (*ssm.GetParametersByPathOutput, error) {
-	return api.GetParametersByPath(ctx, input)
-}
-
-func (h *handler) readParameters(path string) (*ssm.GetParametersByPathOutput, error) {
-	input := &ssm.GetParametersByPathInput{
-		Path:           aws.String(path),
-		WithDecryption: true,
-	}
-
-	output, err := GetParametersByPath(context.TODO(), h.ssmClient, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return output, nil
-}
-
-func (h *handler) sendNotification(ctx context.Context, msg Message) (*ses.SendEmailOutput, error) {
-	input := &ses.SendEmailInput{
+func SendEmail(ctx context.Context, api SESSendEmailAPI, sender string, recipient string, msg Message) (*ses.SendEmailOutput, error) {
+	return api.SendEmail(ctx, &ses.SendEmailInput{
 		Destination: &types.Destination{
 			CcAddresses: []string{},
 			ToAddresses: []string{
-				msg.Recipient,
+				recipient,
 			},
 		},
 		Message: &types.Message{
 			Body: &types.Body{
 				Html: &types.Content{
-					Charset: aws.String(msg.CharSet),
+					Charset: aws.String(charSet),
 					Data:    aws.String(msg.HtmlBody),
 				},
 				Text: &types.Content{
-					Charset: aws.String(msg.CharSet),
+					Charset: aws.String(charSet),
 					Data:    aws.String(msg.TextBody),
 				},
 			},
 			Subject: &types.Content{
-				Charset: aws.String(msg.CharSet),
+				Charset: aws.String(charSet),
 				Data:    aws.String(msg.Subject),
 			},
 		},
-		Source: aws.String(msg.Sender),
-	}
-
-	output, err := SendEmail(context.TODO(), h.sesClient, input)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("Email sent to " + msg.Recipient)
-	return output, nil
+		Source: aws.String(sender),
+	})
 }
 
-func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error) {
-	output, err := h.readParameters("/shiftboard/notifications")
-	if err != nil {
-		return "", fmt.Errorf("error reading SSM parameter store: %v", err)
-	}
+func GetParametersByPath(ctx context.Context, api SSMGetParametersByPathAPI, path string, withDecryption bool) (*ssm.GetParametersByPathOutput, error) {
+	return api.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
+		Path:           aws.String(path),
+		WithDecryption: withDecryption,
+	})
+}
 
+func parseParameters(output *ssm.GetParametersByPathOutput) (sender string, recipient string, err error) {
 	if len(output.Parameters) == 0 {
-		return "", fmt.Errorf("no parameters returned from SSM parameter store")
+		return "", "", errors.New("no parameters returned from SSM parameter store")
 	}
-
-	var sender string
-	var recipient string
 
 	for _, item := range output.Parameters {
 		switch strings.Split(*item.Name, "/")[3] {
@@ -120,14 +90,27 @@ func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error
 		}
 	}
 
-	msg.Sender = sender
-	msg.Recipient = recipient
-	msg.CharSet = "UTF-8"
+	return sender, recipient, nil
+}
 
-	_, err = h.sendNotification(context.TODO(), msg)
+func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error) {
+	params, err := GetParametersByPath(context.TODO(), h.ssmClient, "/shiftboard/notifications", false)
+	if err != nil {
+		return "", fmt.Errorf("error reading from SSM parameter store: %v", err)
+	}
+
+	sender, recipient, err := parseParameters(params)
+	if err != nil {
+		return "", fmt.Errorf("error parsing parameters: %v", err)
+	}
+
+	output, err := SendEmail(context.TODO(), h.sesClient, sender, recipient, msg)
 	if err != nil {
 		return "", fmt.Errorf("error sending SES notification: %v", err)
 	}
+
+	fmt.Println(output)
+	fmt.Println("Email sent to " + recipient)
 
 	return "Success", nil
 }

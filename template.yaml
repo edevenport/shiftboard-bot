@@ -1,17 +1,40 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
+
 Description: >
   SAM template for shiftboard-bot
 
 Parameters:
-  TableNameParameter:
+  AppName:
     Type: String
-    Default: ShiftBoard
-  # EmailIdentityParameter:
-  #   Type: String
-  DomainIdentityParameter:
+    Default: shiftboard-bot
+  Env:
     Type: String
+    AllowedValues:
+      - dev
+      - test
+      - prod
+  TableName:
+    Type: String
+    Default: shiftboard-bot
+  SSMAPIParameterPath:
+    Type: String
+    Default: "shiftboard/api"
+  SSMNotificationsParameterPath:
+    Type: String
+    Default: "shiftboard/notifications"
+
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: go1.x
+    MemorySize: 128
+    Tags:
+      app:
+        Ref: AppName
+      env:
+        Ref: Env
 
 Resources:
   DatabaseTable:
@@ -25,9 +48,17 @@ Resources:
         - AttributeName: ID
           KeyType: HASH
       ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
-      TableName: !Ref TableNameParameter
+        ReadCapacityUnits: 10
+        WriteCapacityUnits: 10
+      Tags:
+        - Key: app
+          Value:
+            Ref: AppName
+        - Key: env
+          Value:
+            Ref: Env
+      TableName:
+        Ref: TableName
       TimeToLiveSpecification:
         AttributeName: TTL
         Enabled: true
@@ -38,19 +69,24 @@ Resources:
       CodeUri: functions/retriever
       Environment:
         Variables:
-          WORKER_FUNCTION: !Ref WorkerFunction
-          NOTIFICATION_FUNCTION: !Ref NotificationFunction
+          WORKER_FUNCTION:
+            Ref: WorkerFunction
+          NOTIFICATION_FUNCTION:
+            Ref: NotificationFunction
       Handler: retriever
       MemorySize: 128
-      Timeout: 10
-      Runtime: go1.x
       Architectures:
         - x86_64
       Policies:
         - LambdaInvokePolicy:
-            FunctionName: !Ref WorkerFunction
+            FunctionName:
+              Ref: NotificationFunction
         - LambdaInvokePolicy:
-            FunctionName: !Ref NotificationFunction
+            FunctionName:
+              Ref: WorkerFunction
+        - SSMParameterReadPolicy:
+            ParameterName:
+              Ref: SSMAPIParameterPath
 
   WorkerFunction:
     Type: AWS::Serverless::Function
@@ -58,19 +94,20 @@ Resources:
       CodeUri: functions/worker
       Environment:
         Variables:
-          TABLE_NAME: !Ref TableNameParameter
-          NOTIFICATION_FUNCTION: !Ref NotificationFunction
+          TABLE_NAME:
+            Ref: TableName
+          NOTIFICATION_FUNCTION:
+            Ref: NotificationFunction
       Handler: worker
-      MemorySize: 128
-      Timeout: 10
-      Runtime: go1.x
       Architectures:
         - x86_64
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref DatabaseTable
+            TableName:
+              Ref: DatabaseTable
         - LambdaInvokePolicy:
-            FunctionName: !Ref NotificationFunction
+            FunctionName:
+              Ref: NotificationFunction
 
   NotificationFunction:
     Type: AWS::Serverless::Function
@@ -78,29 +115,51 @@ Resources:
       CodeUri: functions/notification
       Handler: notification
       MemorySize: 128
-      Timeout: 10
-      Runtime: go1.x
       Architectures:
         - x86_64
       Policies:
         - SESCrudPolicy:
-            IdentityName: !Ref DomainIdentityParameter
+            IdentityName: "*"
+        - SSMParameterReadPolicy:
+            ParameterName:
+              Ref: SSMNotificationsParameterPath
 
-#   SenderEmailIdentity:
-#     Type: AWS::SES::EmailIdentity
-#     Properties:
-#       EmailIdentity: !Ref EmailIdentityParameter
-#
+  RetrieverFunctionSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: "rate(1 hour)"
+      State: ENABLED
+      Targets:
+        - Arn:
+            Fn::GetAtt:
+              - RetrieverFunction
+              - Arn
+          Id: RetrieverFunctionV1
+
+  RetrieverInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: RetrieverFunction
+      Action: "lambda:InvokeFunction"
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+          - RetrieverFunctionSchedule
+          - Arn
 
 Outputs:
   RetrieverFunctionName:
     Description: Retriever function name
-    Value: !Ref RetrieverFunction
+    Value:
+      Ref: RetrieverFunction
 
   WorkerFunctionName:
     Description: Worker function name
-    Value: !Ref WorkerFunction
+    Value:
+      Ref: WorkerFunction
 
   NotificationFunctionName:
     Description: Notification function name
-    Value: !Ref NotificationFunction
+    Value:
+      Ref: NotificationFunction

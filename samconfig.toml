@@ -1,8 +1,22 @@
 version=0.1
+
 [default.global.parameters]
 stack_name = "shiftboard-bot"
 s3_bucket = "shiftboard-bot"
-
-[default.deploy.parameters]
 region = "us-west-2"
-tags = "project=\"shiftboard-bot\""
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "AppName=shiftboard-bot Env=dev"
+
+[test.deploy.parameters]
+stack_name = "shiftboard-bot"
+s3_bucket = "shiftboard-bot"
+region = "us-west-2"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "AppName=shiftboard-bot Env=test"
+
+[prod.deploy.parameters]
+stack_name = "shiftboard-bot"
+s3_bucket = "shiftboard-bot"
+region = "us-west-2"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "AppName=shiftboard-bot Env=prod"

@@ -41,13 +41,10 @@ type ShiftExt struct {
 	TTL int64
 }
 
-type message struct {
-	CharSet   string `json:"charSet,omitempty"`
-	HTMLBody  string `json:"htmlBody,omitempty"`
-	Recipient string `json:"recipient,omitempty"`
-	Sender    string `json:"sender,omitempty"`
-	Subject   string `json:"subject,omitempty"`
-	TextBody  string `json:"textBody,omitempty"`
+type Message struct {
+	HtmlBody string `json:"htmlBody,omitempty"`
+	Subject  string `json:"subject,omitempty"`
+	TextBody string `json:"textBody,omitempty"`
 }
 
 type DynamoDBPutItemAPI interface {
@@ -169,14 +166,14 @@ func (h *handler) writeAllToDB(tableName string, payload []shiftboard.Shift) err
 
 		err := h.writePayloadBatch(payload[start:end])
 		if err != nil {
-			return fmt.Errorf("error writing batch payload")
+			return fmt.Errorf("error writing batch payload: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func (h *handler) sendNotification(msg message) error {
+func (h *handler) sendNotification(msg Message) error {
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("error marshalling message payload: %v", err)
@@ -227,7 +224,7 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 		return "", fmt.Errorf("error reading data from DynamoDB table: %v", err)
 	}
 
-	// Write data to DynamoDB table and finish if no cache exists
+	// Write payload to DynamoDB table if no cache already exists and finish
 	if len(cachedData) == 0 {
 		if err := h.writeAllToDB(h.tableName, payload); err != nil {
 			return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
@@ -235,6 +232,7 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 		return "Success", nil
 	}
 
+	// Compare payload with enteries cached in DynamoDB
 	for _, item := range h.compareData(&payload, &cachedData) {
 		msg := constructMessage(item)
 
@@ -265,7 +263,7 @@ func constructWriteRequest(item shiftboard.Shift) (*dbtypes.WriteRequest, error)
 	}, nil
 }
 
-func constructMessage(item diff) (msg message) {
+func constructMessage(item diff) (msg Message) {
 	shift := item.Shift
 
 	if item.State == "created" {
@@ -278,7 +276,7 @@ func constructMessage(item diff) (msg message) {
 		msg.TextBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
 	}
 
-	msg.HTMLBody = fmt.Sprintf("<p>%s</p>", msg.TextBody)
+	msg.HtmlBody = fmt.Sprintf("<p>%s</p>", msg.TextBody)
 
 	return msg
 }

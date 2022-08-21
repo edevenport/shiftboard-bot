@@ -3,7 +3,7 @@ set -euo pipefail
 
 ENDPOINT_URL="http://localhost:4566"
 OUT_FILE="output.txt"
-TABLE_NAME="ShiftBoard"
+TABLE_NAME="shiftboard-bot"
 
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
