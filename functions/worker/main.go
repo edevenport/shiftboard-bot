@@ -41,13 +41,10 @@ type ShiftExt struct {
 	TTL int64
 }
 
-type message struct {
-	CharSet   string `json:"charSet,omitempty"`
-	HTMLBody  string `json:"htmlBody,omitempty"`
-	Recipient string `json:"recipient,omitempty"`
-	Sender    string `json:"sender,omitempty"`
-	Subject   string `json:"subject,omitempty"`
-	TextBody  string `json:"textBody,omitempty"`
+type Message struct {
+	HtmlBody string `json:"htmlBody,omitempty"`
+	Subject  string `json:"subject,omitempty"`
+	TextBody string `json:"textBody,omitempty"`
 }
 
 type DynamoDBPutItemAPI interface {
@@ -176,7 +173,7 @@ func (h *handler) writeAllToDB(tableName string, payload []shiftboard.Shift) err
 	return nil
 }
 
-func (h *handler) sendNotification(msg message) error {
+func (h *handler) sendNotification(msg Message) error {
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("error marshalling message payload: %v", err)
@@ -266,7 +263,7 @@ func constructWriteRequest(item shiftboard.Shift) (*dbtypes.WriteRequest, error)
 	}, nil
 }
 
-func constructMessage(item diff) (msg message) {
+func constructMessage(item diff) (msg Message) {
 	shift := item.Shift
 
 	if item.State == "created" {
@@ -279,7 +276,7 @@ func constructMessage(item diff) (msg message) {
 		msg.TextBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
 	}
 
-	msg.HTMLBody = fmt.Sprintf("<p>%s</p>", msg.TextBody)
+	msg.HtmlBody = fmt.Sprintf("<p>%s</p>", msg.TextBody)
 
 	return msg
 }
