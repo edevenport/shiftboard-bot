@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"strconv"
 	"testing"
 
@@ -186,6 +187,39 @@ func TestParseParameters(t *testing.T) {
 	}
 }
 
+func TestGetEnv(t *testing.T) {
+	mockEnv()
+
+	cases := []struct {
+		description string
+		key         string
+		fallback    string
+		expect      string
+	}{
+		{
+			description: "envSet",
+			key:         "MOCK_ENV",
+			fallback:    "notTested",
+			expect:      "test",
+		},
+		{
+			description: "envFallback",
+			key:         "",
+			fallback:    "testFallback",
+			expect:      "testFallback",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.description, func(t *testing.T) {
+			result := getEnv(tt.key, tt.fallback)
+			if e, a := tt.expect, result; e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+		})
+	}
+}
+
 // mockParametersOutput returns mock parameters if 'params' bool is true, otherwise
 // returns an empty parameters slice if false.
 func mockParametersOutput(params bool) *ssm.GetParametersByPathOutput {
@@ -205,5 +239,12 @@ func mockParametersOutput(params bool) *ssm.GetParametersByPathOutput {
 
 	return &ssm.GetParametersByPathOutput{
 		Parameters: parameters,
+	}
+}
+
+func mockEnv() {
+	err := os.Setenv("MOCK_ENV", "test")
+	if err != nil {
+		panic(err)
 	}
 }
