@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strconv"
 	"testing"
 
@@ -142,5 +143,67 @@ func TestInvoke(t *testing.T) {
 				t.Errorf("expect %v, got %v", e, a)
 			}
 		})
+	}
+}
+
+func TestParseParameters(t *testing.T) {
+	cases := []struct {
+		description    string
+		output         *ssm.GetParametersByPathOutput
+		expectEmail    string
+		expectPassword string
+		expectErr      error
+	}{
+		{
+			description:    "checkParameters",
+			output:         mockParametersOutput(true),
+			expectEmail:    "user@example.com",
+			expectPassword: "password123",
+			expectErr:      nil,
+		},
+		{
+			description:    "checkEmptyParameters",
+			output:         mockParametersOutput(false),
+			expectEmail:    "",
+			expectPassword: "",
+			expectErr:      errors.New("no parameters returned from SSM parameter store"),
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.description, func(t *testing.T) {
+			email, password, err := parseParameters(tt.output)
+			if e, a := tt.expectErr, err; a != nil && e.Error() != a.Error() {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+			if e, a := tt.expectEmail, email; e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+			if e, a := tt.expectPassword, password; e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+		})
+	}
+}
+
+// mockParametersOutput returns mock parameters if 'params' bool is true, otherwise
+// returns an empty parameters slice if false.
+func mockParametersOutput(params bool) *ssm.GetParametersByPathOutput {
+	var parameters []ssmtypes.Parameter
+
+	if params {
+		parameters = append(parameters, ssmtypes.Parameter{
+			Name:  aws.String("/shiftboard/api/email"),
+			Value: aws.String("user@example.com"),
+		})
+
+		parameters = append(parameters, ssmtypes.Parameter{
+			Name:  aws.String("/shiftboard/api/password"),
+			Value: aws.String("password123"),
+		})
+	}
+
+	return &ssm.GetParametersByPathOutput{
+		Parameters: parameters,
 	}
 }

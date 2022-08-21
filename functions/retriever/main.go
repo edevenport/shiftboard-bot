@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -57,16 +58,9 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error reading AWS parameter store: %v", err)
 	}
 
-	var email string
-	var password string
-
-	for _, item := range output.Parameters {
-		switch strings.Split(*item.Name, "/")[3] {
-		case "email":
-			email = *item.Value
-		case "password":
-			password = *item.Value
-		}
+	email, password, err := parseParameters(output)
+	if err != nil {
+		return "", fmt.Errorf("error parsing parameters: %v", err)
 	}
 
 	apiClient, err := apiLogin(email, password)
@@ -90,6 +84,23 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 	}
 
 	return "Success", nil
+}
+
+func parseParameters(output *ssm.GetParametersByPathOutput) (email string, password string, err error) {
+	if len(output.Parameters) == 0 {
+		return "", "", errors.New("no parameters returned from SSM parameter store")
+	}
+
+	for _, item := range output.Parameters {
+		switch strings.Split(*item.Name, "/")[3] {
+		case "email":
+			email = *item.Value
+		case "password":
+			password = *item.Value
+		}
+	}
+
+	return email, password, nil
 }
 
 func apiLogin(email string, password string) (*shiftboard.Client, error) {
