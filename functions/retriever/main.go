@@ -58,6 +58,8 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error reading AWS parameter store: %v", err)
 	}
 
+	fmt.Printf("GetParametersByPath Output: %+v\n", output)
+
 	email, password, err := parseParameters(output)
 	if err != nil {
 		return "", fmt.Errorf("error parsing parameters: %v", err)
@@ -78,10 +80,14 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error marshalling ShiftBoard API data: %v", err)
 	}
 
-	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.workerFunction, jsonData)
+	fmt.Printf("Payload Size: %d\n", len(string(jsonData)))
+
+	invokeOutput, err := h.Invoke(context.TODO(), h.lambdaClient, h.workerFunction, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("error invoking function '%v': %v", h.workerFunction, err)
 	}
+
+	fmt.Printf("Lambda Output: %+v\n", invokeOutput)
 
 	return "Success", nil
 }
