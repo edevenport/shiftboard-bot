@@ -18,7 +18,10 @@ import (
 	runtime "github.com/aws/aws-lambda-go/lambda"
 )
 
-const charSet = "UTF-8"
+const (
+	charSet   = "UTF-8"
+	paramPath = "/shiftboard/notifications"
+)
 
 type handler struct {
 	sesClient *ses.Client
@@ -83,6 +86,34 @@ func GetParametersByPath(ctx context.Context, api SSMGetParametersByPathAPI, pat
 	})
 }
 
+func (h *handler) HandleRequest(ctx context.Context, payload Diff) (string, error) {
+	// Read notification parameters from SSM Parameter Store
+	params, err := GetParametersByPath(context.TODO(), h.ssmClient, paramPath, false)
+	if err != nil {
+		return "", fmt.Errorf("error reading from SSM parameter store: %v", err)
+	}
+
+	// Extract sender and recipient from parameters
+	sender, recipient, err := parseParameters(params)
+	if err != nil {
+		return "", fmt.Errorf("error parsing parameters: %v", err)
+	}
+
+	// Construct email template
+	msg := constructMessage(&payload)
+
+	// Send email to recipients
+	output, err := SendEmail(context.TODO(), h.sesClient, sender, recipient, msg)
+	if err != nil {
+		return "", fmt.Errorf("error sending SES notification: %v", err)
+	}
+
+	fmt.Println("Message ID:", *output.MessageId)
+	fmt.Println("Email sent to " + recipient)
+
+	return "Success", nil
+}
+
 func parseParameters(output *ssm.GetParametersByPathOutput) (sender string, recipient string, err error) {
 	if len(output.Parameters) == 0 {
 		return "", "", errors.New("no parameters returned from SSM parameter store")
@@ -120,35 +151,6 @@ func formatDate(item *Diff) string {
 	}
 
 	return dateTime[item.State]
-}
-
-// func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error) {
-func (h *handler) HandleRequest(ctx context.Context, payload Diff) (string, error) {
-	// Read notification parameters from SSM Parameter Store
-	params, err := GetParametersByPath(context.TODO(), h.ssmClient, "/shiftboard/notifications", false)
-	if err != nil {
-		return "", fmt.Errorf("error reading from SSM parameter store: %v", err)
-	}
-
-	// Extract sender and recipient from parameters
-	sender, recipient, err := parseParameters(params)
-	if err != nil {
-		return "", fmt.Errorf("error parsing parameters: %v", err)
-	}
-
-	// Construct email template
-	msg := constructMessage(&payload)
-
-	// Send email to recipients
-	output, err := SendEmail(context.TODO(), h.sesClient, sender, recipient, msg)
-	if err != nil {
-		return "", fmt.Errorf("error sending SES notification: %v", err)
-	}
-
-	fmt.Println("Message ID:", *output.MessageId)
-	fmt.Println("Email sent to " + recipient)
-
-	return "Success", nil
 }
 
 func main() {

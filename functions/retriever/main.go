@@ -18,6 +18,8 @@ import (
 	"github.com/edevenport/shiftboard-sdk-go"
 )
 
+const paramPath = "/shiftboard/api"
+
 type handler struct {
 	workerFunction       string
 	notificationFunction string
@@ -37,14 +39,14 @@ type LambdaInvokeAPI interface {
 		optFns ...func(*lambda.Options)) (*lambda.InvokeOutput, error)
 }
 
-func (h *handler) GetParametersByPath(ctx context.Context, api SSMGetParametersByPathAPI, path string, withDecryption bool) (*ssm.GetParametersByPathOutput, error) {
+func GetParametersByPath(ctx context.Context, api SSMGetParametersByPathAPI, path string, withDecryption bool) (*ssm.GetParametersByPathOutput, error) {
 	return api.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
 		Path:           aws.String(path),
 		WithDecryption: withDecryption,
 	})
 }
 
-func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName string, payload []byte) (*lambda.InvokeOutput, error) {
+func Invoke(ctx context.Context, api LambdaInvokeAPI, functionName string, payload []byte) (*lambda.InvokeOutput, error) {
 	return api.Invoke(ctx, &lambda.InvokeInput{
 		FunctionName:   aws.String(functionName),
 		InvocationType: types.InvocationTypeEvent,
@@ -53,7 +55,7 @@ func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName 
 }
 
 func (h handler) HandleRequest(ctx context.Context) (string, error) {
-	output, err := h.GetParametersByPath(context.TODO(), h.ssmClient, "/shiftboard/api", true)
+	output, err := GetParametersByPath(context.TODO(), h.ssmClient, paramPath, true)
 	if err != nil {
 		return "", fmt.Errorf("error reading AWS parameter store: %v", err)
 	}
@@ -82,7 +84,7 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 
 	fmt.Printf("Payload Size: %d\n", len(string(jsonData)))
 
-	invokeOutput, err := h.Invoke(context.TODO(), h.lambdaClient, h.workerFunction, jsonData)
+	invokeOutput, err := Invoke(context.TODO(), h.lambdaClient, h.workerFunction, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("error invoking function '%v': %v", h.workerFunction, err)
 	}
