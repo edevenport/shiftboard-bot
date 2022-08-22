@@ -3,15 +3,25 @@ package main
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/edevenport/shiftboard-sdk-go"
 )
+
+const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+type MockItem struct {
+	*shiftboard.Shift
+}
 
 type mockGetParametersByPathAPI func(ctx context.Context, params *ssm.GetParametersByPathInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
 
@@ -69,6 +79,74 @@ func TestGetParametersByPath(t *testing.T) {
 				t.Fatalf("expect no error, got %v", err)
 			}
 			if e, a := *tt.expect.Parameters[0].Value, *output.Parameters[0].Value; e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+		})
+	}
+}
+
+func TestConstructMessage(t *testing.T) {
+	cases := []struct {
+		description string
+		item        Diff
+		expect      string
+	}{
+		{
+			description: "newMessage",
+			item:        Diff{State: "created", Shift: mockShift()},
+			expect:      "New shift added",
+		},
+		{
+			description: "updateMessage",
+			item:        Diff{State: "updated", Shift: mockShift()},
+			expect:      "Shift updated",
+		},
+		{
+			description: "emptyMessage",
+			item:        Diff{},
+			expect:      "",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.description, func(t *testing.T) {
+			result := constructMessage(&tt.item)
+			if e, a := tt.expect, result; !strings.HasPrefix(a.Subject, e) {
+				t.Errorf("expect prefix %v, got %v", e, a.Subject)
+			}
+		})
+	}
+}
+
+func TestFormatDate(t *testing.T) {
+	shift := mockShift()
+	created := shift.Created.Format(time.RFC1123)
+	updated := shift.Updated.Format(time.RFC1123)
+
+	cases := []struct {
+		description string
+		item        Diff
+		expect      string
+	}{
+		{
+			description: "createdFormat",
+			item:        Diff{State: "created", Shift: mockShift()},
+			expect:      created,
+		},
+		{
+			description: "updatedFormat",
+			item:        Diff{State: "updated", Shift: mockShift()},
+			expect:      updated,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.description, func(t *testing.T) {
+			result := formatDate(&tt.item)
+			if result == "" {
+				t.Fatal("expect result to not be empty")
+			}
+			if e, a := tt.expect, result; e != a {
 				t.Errorf("expect %v, got %v", e, a)
 			}
 		})
@@ -214,4 +292,46 @@ func mockParametersOutput(params bool) *ssm.GetParametersByPathOutput {
 	return &ssm.GetParametersByPathOutput{
 		Parameters: parameters,
 	}
+}
+
+func (m *MockItem) New() *MockItem {
+	createTime, _ := time.Parse(time.RFC3339, "2022-04-18T12:00:00Z")
+	updateTime, _ := time.Parse(time.RFC3339, "2022-05-11T12:00:00Z")
+
+	m.ID = randomID()
+	m.Name = randomString()
+	m.StartDate = "2022-06-15T12:00:00"
+	m.EndDate = "2022-06-15T12:00:00"
+	m.Created = createTime
+	m.Updated = updateTime
+
+	return m
+}
+
+func mockShift() shiftboard.Shift {
+	item := &MockItem{&shiftboard.Shift{}}
+	item.New()
+
+	return *item.Shift
+}
+
+func randomID() string {
+	rand.Seed(time.Now().UnixNano())
+
+	min := 100000000
+	max := 999999999
+	id := min + rand.Intn(max-min)
+
+	return strconv.Itoa(id)
+}
+
+func randomString() string {
+	rand.Seed(time.Now().UnixNano())
+
+	b := make([]byte, 24)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+
+	return string(b)
 }

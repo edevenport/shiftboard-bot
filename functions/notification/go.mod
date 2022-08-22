@@ -8,6 +8,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.15.14
 	github.com/aws/aws-sdk-go-v2/service/ses v1.14.9
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.27.4
+	github.com/aws/smithy-go v1.12.0
+	github.com/edevenport/shiftboard-sdk-go v0.0.0-20220816190702-880d2edd18e6
 )
 
 require (
@@ -19,6 +21,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.11.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.9 // indirect
-	github.com/aws/smithy-go v1.12.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )

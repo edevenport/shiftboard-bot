@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/edevenport/shiftboard-sdk-go"
 
 	runtime "github.com/aws/aws-lambda-go/lambda"
 )
@@ -21,6 +23,11 @@ const charSet = "UTF-8"
 type handler struct {
 	sesClient *ses.Client
 	ssmClient *ssm.Client
+}
+
+type Diff struct {
+	State string
+	Shift shiftboard.Shift
 }
 
 type Message struct {
@@ -93,23 +100,52 @@ func parseParameters(output *ssm.GetParametersByPathOutput) (sender string, reci
 	return sender, recipient, nil
 }
 
-func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error) {
+func constructMessage(item *Diff) (msg Message) {
+	shift := item.Shift
+
+	tmplDate := formatDate(item)
+	tmpl := generateTemplate(item.State)
+
+	msg.Subject = fmt.Sprintf(tmpl.Subject, shift.Name)
+	msg.TextBody = fmt.Sprintf(tmpl.TextBody, shift.Name, tmplDate, shift.ID)
+	msg.HtmlBody = fmt.Sprintf(tmpl.HtmlBody, shift.ID, shift.Name, tmplDate)
+
+	return msg
+}
+
+func formatDate(item *Diff) string {
+	dateTime := map[string]string{
+		"created": item.Shift.Created.Format(time.RFC1123),
+		"updated": item.Shift.Updated.Format(time.RFC1123),
+	}
+
+	return dateTime[item.State]
+}
+
+// func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error) {
+func (h *handler) HandleRequest(ctx context.Context, payload Diff) (string, error) {
+	// Read notification parameters from SSM Parameter Store
 	params, err := GetParametersByPath(context.TODO(), h.ssmClient, "/shiftboard/notifications", false)
 	if err != nil {
 		return "", fmt.Errorf("error reading from SSM parameter store: %v", err)
 	}
 
+	// Extract sender and recipient from parameters
 	sender, recipient, err := parseParameters(params)
 	if err != nil {
 		return "", fmt.Errorf("error parsing parameters: %v", err)
 	}
 
+	// Construct email template
+	msg := constructMessage(&payload)
+
+	// Send email to recipients
 	output, err := SendEmail(context.TODO(), h.sesClient, sender, recipient, msg)
 	if err != nil {
 		return "", fmt.Errorf("error sending SES notification: %v", err)
 	}
 
-	fmt.Printf("SendEmail Output: %+v\n", output)
+	fmt.Println("Message ID:", *output.MessageId)
 	fmt.Println("Email sent to " + recipient)
 
 	return "Success", nil

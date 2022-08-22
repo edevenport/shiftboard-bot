@@ -31,7 +31,7 @@ type handler struct {
 	lambdaClient         *lambda.Client
 }
 
-type diff struct {
+type Diff struct {
 	State string
 	Shift shiftboard.Shift
 }
@@ -39,12 +39,6 @@ type diff struct {
 type ShiftExt struct {
 	shiftboard.Shift
 	TTL int64
-}
-
-type Message struct {
-	HtmlBody string `json:"htmlBody,omitempty"`
-	Subject  string `json:"subject,omitempty"`
-	TextBody string `json:"textBody,omitempty"`
 }
 
 type DynamoDBPutItemAPI interface {
@@ -91,10 +85,10 @@ func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName 
 	})
 }
 
-func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftboard.Shift) (changeLog []diff) {
+func (h *handler) compareData(newData *[]shiftboard.Shift, cachedData *[]shiftboard.Shift) (changeLog []Diff) {
 	for i := 0; i < len(*newData); i++ {
 		shift := (*newData)[i]
-		diff := diff{}
+		diff := Diff{}
 
 		if state := getState(shift, cachedData); state != "" {
 			diff.State = state
@@ -173,16 +167,18 @@ func (h *handler) writeAllToDB(tableName string, payload []shiftboard.Shift) err
 	return nil
 }
 
-func (h *handler) sendNotification(msg Message) error {
-	payload, err := json.Marshal(msg)
+func (h *handler) invokeNotification(item Diff) error {
+	payload, err := json.Marshal(item)
 	if err != nil {
-		return fmt.Errorf("error marshalling message payload: %v", err)
+		return fmt.Errorf("error marshalling notification payload: %v", err)
 	}
 
-	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.notificationFunction, payload)
+	output, err := h.Invoke(context.TODO(), h.lambdaClient, h.notificationFunction, payload)
 	if err != nil {
-		return fmt.Errorf("error invoking function '%v': %v", h.notificationFunction, err)
+		return fmt.Errorf("error invoking Lambda function '%v': %v", h.notificationFunction, err)
 	}
+
+	fmt.Printf("Invoke Lambda Output: %+v\n", *output)
 
 	return nil
 }
@@ -234,14 +230,12 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 
 	// Compare payload with enteries cached in DynamoDB
 	for _, item := range h.compareData(&payload, &cachedData) {
-		msg := constructMessage(item)
-
-		if err := h.sendNotification(msg); err != nil {
-			return "", fmt.Errorf("error sending notification: %v", err)
-		}
-
 		if err := h.writeItemToDB(h.tableName, item.Shift); err != nil {
 			return "", fmt.Errorf("error writing shift to DynamoDB: %v", err)
+		}
+
+		if err := h.invokeNotification(item); err != nil {
+			return "", fmt.Errorf("error invoking notification Lambda: %v", err)
 		}
 	}
 
@@ -261,24 +255,6 @@ func constructWriteRequest(item shiftboard.Shift) (*dbtypes.WriteRequest, error)
 			Item: av,
 		},
 	}, nil
-}
-
-func constructMessage(item diff) (msg Message) {
-	shift := item.Shift
-
-	if item.State == "created" {
-		msg.Subject = fmt.Sprintf("New shift added: %s", shift.Name)
-		msg.TextBody = fmt.Sprintf("Shift has been added for '%s' on %s", shift.Name, shift.Created)
-	}
-
-	if item.State == "updated" {
-		msg.Subject = fmt.Sprintf("Shift updated: %s", shift.Name)
-		msg.TextBody = fmt.Sprintf("Shift for '%s' was updated on %s", shift.Name, shift.Updated)
-	}
-
-	msg.HtmlBody = fmt.Sprintf("<p>%s</p>", msg.TextBody)
-
-	return msg
 }
 
 func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) string {

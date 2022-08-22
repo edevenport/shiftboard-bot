@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -210,39 +209,6 @@ func TestScanPages(t *testing.T) {
 	}
 }
 
-func TestConstructMessage(t *testing.T) {
-	cases := []struct {
-		description string
-		item        diff
-		expect      string
-	}{
-		{
-			description: "addMessage",
-			item:        diff{State: "created", Shift: mockShift()},
-			expect:      "New shift added",
-		},
-		{
-			description: "updateMessage",
-			item:        diff{State: "updated", Shift: mockShift()},
-			expect:      "Shift updated",
-		},
-		{
-			description: "emptyMessage",
-			item:        diff{},
-			expect:      "",
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.description, func(t *testing.T) {
-			result := constructMessage(tt.item)
-			if e, a := tt.expect, result; !strings.HasPrefix(a.Subject, e) {
-				t.Errorf("expect prefix %v, got %v", e, a.Subject)
-			}
-		})
-	}
-}
-
 func TestCompareData(t *testing.T) {
 	h := handler{}
 
@@ -289,11 +255,6 @@ func TestCompareData(t *testing.T) {
 }
 
 func TestGetState(t *testing.T) {
-	// item := &MockItem{&shiftboard.Shift{}}
-	// item.New()
-
-	// shift := *item.Shift
-	// cache := mockCache(shift)
 	shift := mockShift()
 	cache := []shiftboard.Shift{shift}
 
