@@ -109,7 +109,7 @@ func (h *handler) HandleRequest(ctx context.Context, msg Message) (string, error
 		return "", fmt.Errorf("error sending SES notification: %v", err)
 	}
 
-	fmt.Println(output)
+	fmt.Printf("SendEmail Output: %+v\n", output)
 	fmt.Println("Email sent to " + recipient)
 
 	return "Success", nil
