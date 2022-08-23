@@ -325,7 +325,7 @@ func TestGetEnv(t *testing.T) {
 }
 
 func TestAddItemTTL(t *testing.T) {
-	expect := int64(1657886400)
+	expect := int64(1657972800)
 	result := addItemTTL(mockShift())
 
 	if (ShiftExt{} == result) {
