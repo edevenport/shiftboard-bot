@@ -286,7 +286,7 @@ func addItemTTL(item shiftboard.Shift) ShiftExt {
 	endDate, _ := time.Parse(time.RFC3339, item.EndDate+"Z")
 
 	// Set DynamoDB TTL one month after the shift end date
-	ttl := endDate.AddDate(0, 1, 0)
+	ttl := endDate.AddDate(0, 1, 1)
 
 	// Extend shift object with TTL field
 	var shift ShiftExt
