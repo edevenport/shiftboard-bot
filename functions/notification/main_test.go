@@ -120,8 +120,7 @@ func TestConstructMessage(t *testing.T) {
 
 func TestFormatDate(t *testing.T) {
 	shift := mockShift()
-	created := shift.Created.Format(time.RFC1123)
-	updated := shift.Updated.Format(time.RFC1123)
+	startDate, _ := time.Parse(time.RFC3339, shift.StartDate+"Z")
 
 	cases := []struct {
 		description string
@@ -129,14 +128,14 @@ func TestFormatDate(t *testing.T) {
 		expect      string
 	}{
 		{
-			description: "createdFormat",
+			description: "startDateFormat",
 			item:        Diff{State: "created", Shift: mockShift()},
-			expect:      created,
+			expect:      startDate.Format(time.RFC1123),
 		},
 		{
 			description: "updatedFormat",
 			item:        Diff{State: "updated", Shift: mockShift()},
-			expect:      updated,
+			expect:      shift.Updated.Format(time.RFC1123),
 		},
 	}
 

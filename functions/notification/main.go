@@ -145,8 +145,9 @@ func constructMessage(item *Diff) (msg Message) {
 }
 
 func formatDate(item *Diff) string {
+	startDate, _ := time.Parse(time.RFC3339, item.Shift.StartDate+"Z")
 	dateTime := map[string]string{
-		"created": item.Shift.Created.Format(time.RFC1123),
+		"created": startDate.Format(time.RFC1123),
 		"updated": item.Shift.Updated.Format(time.RFC1123),
 	}
 

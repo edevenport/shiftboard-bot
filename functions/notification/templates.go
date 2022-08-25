@@ -6,7 +6,7 @@ func generateTemplate(state string) Message {
 			Subject: "New shift added: %s",
 			TextBody: `Greetings,
 
-Shift has been added for '%s' on %s.
+New shift added for '%s' starting on %s.
 
 https://m.shiftboard.com/onlocationexp/schedules/shifts/%s
 
@@ -14,7 +14,7 @@ Thank you,
 ShiftBoard Bot`,
 			HtmlBody: `Greetings,
 <p>
-Shift has been added for <a href='https://m.shiftboard.com/onlocationexp/schedules/shifts/%s'>%s</a> on <a href='https://m.shiftboard.com/onlocationexp/schedules/shifts'>%s</a>.
+New shift added for <a href='https://m.shiftboard.com/onlocationexp/schedules/shifts/%s'>%s</a> starting on <a href='https://m.shiftboard.com/onlocationexp/schedules/shifts'>%s</a>.
 </p>
 <p>
 Thank you,<br>
@@ -25,7 +25,7 @@ ShiftBoard Bot
 			Subject: "Shift updated: %s",
 			TextBody: `Greetings,
 
-Shift for '%s' was updated on %s.
+Shift for '%s' has been updated. The current start date is %s.
 
 https://m.shiftboard.com/onlocationexp/schedules/shifts/%s\n
 
@@ -33,7 +33,7 @@ Thank you,
 ShiftBoard Bot`,
 			HtmlBody: `Greetings,
 <p>
-Shift for <a href='https://m.shiftboard.com/onlocationexp/schedules/shifts/%s'>%s</a> was updated on <a href='https://m.shiftboard.com/onlocationexp/schedules/shifts'>%s</a>.
+Shift for <a href='https://m.shiftboard.com/onlocationexp/schedules/shifts/%s'>%s</a> has been updated. The current start date is <a href='https://m.shiftboard.com/onlocationexp/schedules/shifts'>%s</a>.
 </p>
 <p>
 Thank you,<br>

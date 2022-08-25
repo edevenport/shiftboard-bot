@@ -169,10 +169,14 @@ func (h *handler) invokeNotification(item Diff) error {
 }
 
 func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift) (string, error) {
-	// Initialize DynamoDB scan paginator
+	currentTime := time.Now().Format("2006-01-02")
 	p := dynamodb.NewScanPaginator(h.dbClient, &dynamodb.ScanInput{
-		TableName: aws.String(h.tableName),
-		Limit:     aws.Int32(dbPageCount),
+		TableName:        aws.String(h.tableName),
+		Limit:            aws.Int32(dbPageCount),
+		FilterExpression: aws.String("StartDate > :startDate"),
+		ExpressionAttributeValues: map[string]dbtypes.AttributeValue{
+			":startDate": &dbtypes.AttributeValueMemberS{Value: currentTime},
+		},
 	})
 
 	// Read existing cached data from DynamoDB table
@@ -286,7 +290,7 @@ func addItemTTL(item shiftboard.Shift) ShiftExt {
 	endDate, _ := time.Parse(time.RFC3339, item.EndDate+"Z")
 
 	// Set DynamoDB TTL one month after the shift end date
-	ttl := endDate.AddDate(0, 1, 1)
+	ttl := endDate.AddDate(0, 0, 7)
 
 	// Extend shift object with TTL field
 	var shift ShiftExt
