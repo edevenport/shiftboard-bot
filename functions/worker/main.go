@@ -265,7 +265,7 @@ func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) string {
 	updated := false
 
 	for _, c := range *cache {
-		if c.ID == shift.ID {
+		if shift.ID == c.ID {
 			found = true
 			if c.Updated.Before(shift.Updated) {
 				updated = true
@@ -274,12 +274,12 @@ func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) string {
 		}
 	}
 
-	if !found {
-		return "created"
-	}
-
 	if updated {
 		return "updated"
+	}
+
+	if !found {
+		return "created"
 	}
 
 	return ""
