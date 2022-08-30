@@ -118,40 +118,6 @@ func TestConstructMessage(t *testing.T) {
 	}
 }
 
-func TestFormatDate(t *testing.T) {
-	shift := mockShift()
-	startDate, _ := time.Parse(time.RFC3339, shift.StartDate+"Z")
-
-	cases := []struct {
-		description string
-		item        Diff
-		expect      string
-	}{
-		{
-			description: "startDateFormat",
-			item:        Diff{State: "created", Shift: mockShift()},
-			expect:      startDate.Format(time.RFC1123),
-		},
-		{
-			description: "updatedFormat",
-			item:        Diff{State: "updated", Shift: mockShift()},
-			expect:      shift.Updated.Format(time.RFC1123),
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.description, func(t *testing.T) {
-			result := formatDate(&tt.item)
-			if result == "" {
-				t.Fatal("expect result to not be empty")
-			}
-			if e, a := tt.expect, result; e != a {
-				t.Errorf("expect %v, got %v", e, a)
-			}
-		})
-	}
-}
-
 func TestSendEmail(t *testing.T) {
 	messageID := "50632886-158d-4f8b-abf8-d74649e92d7b"
 
