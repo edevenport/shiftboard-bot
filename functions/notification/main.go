@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -55,9 +54,7 @@ func SendEmail(ctx context.Context, api SESSendEmailAPI, sender string, recipien
 	return api.SendEmail(ctx, &ses.SendEmailInput{
 		Destination: &types.Destination{
 			CcAddresses: []string{},
-			ToAddresses: []string{
-				recipient,
-			},
+			ToAddresses: strings.Split(recipient, ","),
 		},
 		Message: &types.Message{
 			Body: &types.Body{
@@ -133,25 +130,13 @@ func parseParameters(output *ssm.GetParametersByPathOutput) (sender string, reci
 
 func constructMessage(item *Diff) (msg Message) {
 	shift := item.Shift
-
-	tmplDate := formatDate(item)
 	tmpl := generateTemplate(item.State)
 
 	msg.Subject = fmt.Sprintf(tmpl.Subject, shift.Name)
-	msg.TextBody = fmt.Sprintf(tmpl.TextBody, shift.Name, tmplDate, shift.ID)
-	msg.HtmlBody = fmt.Sprintf(tmpl.HtmlBody, shift.ID, shift.Name, tmplDate)
+	msg.TextBody = fmt.Sprintf(tmpl.TextBody, shift.Name, shift.DisplayDate, shift.DisplayTime, shift.ID)
+	msg.HtmlBody = fmt.Sprintf(tmpl.HtmlBody, shift.ID, shift.Name, shift.DisplayDate, shift.DisplayTime)
 
 	return msg
-}
-
-func formatDate(item *Diff) string {
-	startDate, _ := time.Parse(time.RFC3339, item.Shift.StartDate+"Z")
-	dateTime := map[string]string{
-		"created": startDate.Format(time.RFC1123),
-		"updated": item.Shift.Updated.Format(time.RFC1123),
-	}
-
-	return dateTime[item.State]
 }
 
 func main() {

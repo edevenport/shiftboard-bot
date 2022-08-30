@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.9.7
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.15.9
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.4
-	github.com/edevenport/shiftboard-sdk-go v0.0.0-20220816190702-880d2edd18e6
+	github.com/edevenport/shiftboard-sdk-go v0.0.0-20220829205954-65d2b4002a2a
 )
 
 require (
