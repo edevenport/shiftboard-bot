@@ -83,7 +83,9 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error retrieving data from ShiftBoard API: %v", err)
 	}
 
-	data = filterByState(data, config.stateFilter)
+	if config.stateFilter != "" {
+		data = filterByState(data, config.stateFilter)
+	}
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
