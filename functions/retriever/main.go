@@ -27,6 +27,12 @@ type handler struct {
 	lambdaClient         *lambda.Client
 }
 
+type apiParameters struct {
+	email       string
+	password    string
+	stateFilter string
+}
+
 type SSMGetParametersByPathAPI interface {
 	GetParametersByPath(ctx context.Context,
 		params *ssm.GetParametersByPathInput,
@@ -62,12 +68,12 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 
 	fmt.Printf("GetParametersByPath Output: %+v\n", output)
 
-	email, password, err := parseParameters(output)
+	config, err := parseParameters(output)
 	if err != nil {
 		return "", fmt.Errorf("error parsing parameters: %v", err)
 	}
 
-	apiClient, err := apiLogin(email, password)
+	apiClient, err := apiLogin(config.email, config.password)
 	if err != nil {
 		return "", fmt.Errorf("error with ShiftBoard API login: %v", err)
 	}
@@ -76,6 +82,8 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error retrieving data from ShiftBoard API: %v", err)
 	}
+
+	data = filterByState(data, config.stateFilter)
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -94,21 +102,37 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 	return "Success", nil
 }
 
-func parseParameters(output *ssm.GetParametersByPathOutput) (email string, password string, err error) {
+func filterByState(data *[]shiftboard.Shift, filter string) *[]shiftboard.Shift {
+	var results []shiftboard.Shift
+	for _, item := range *data {
+		for _, state := range strings.Split(filter, ",") {
+			if item.Location.State == state {
+				results = append(results, item)
+			}
+		}
+	}
+
+	return &results
+}
+
+func parseParameters(output *ssm.GetParametersByPathOutput) (*apiParameters, error) {
+	var params apiParameters
 	if len(output.Parameters) == 0 {
-		return "", "", errors.New("no parameters returned from SSM parameter store")
+		return nil, errors.New("no parameters returned from SSM parameter store")
 	}
 
 	for _, item := range output.Parameters {
 		switch strings.Split(*item.Name, "/")[3] {
 		case "email":
-			email = *item.Value
+			params.email = *item.Value
 		case "password":
-			password = *item.Value
+			params.password = *item.Value
+		case "state_filter":
+			params.stateFilter = *item.Value
 		}
 	}
 
-	return email, password, nil
+	return &params, nil
 }
 
 func apiLogin(email string, password string) (*shiftboard.Client, error) {

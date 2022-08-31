@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.15.14
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.4
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.27.4
-	github.com/edevenport/shiftboard-sdk-go v0.0.0-20220829205954-65d2b4002a2a
+	github.com/edevenport/shiftboard-sdk-go v0.0.0-20220831013327-c8b90a2a9537
 )
 
 require (

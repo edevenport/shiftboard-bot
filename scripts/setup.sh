@@ -125,6 +125,7 @@ function add_parameter() {
 function load_seed_vars {
     SHIFTBOARD_USERNAME="${SHIFTBOARD_USERNAME:-testuser}"
     SHIFTBOARD_PASSWORD="${SHIFTBOARD_PASSWORD:-testpassword}"
+    STATE_FILTER="${STATE_FILTER:-IL,Illinois}"
     SMTP_SENDER="${SMTP_SENDER:-no-reply@example.com}"
     SMTP_RECIPIENT="${SMTP_RECIPIENT:-john.doe@example.com,jane.doe@example.com}"
 
@@ -157,6 +158,7 @@ function main() {
     echo "Seed SSM Parameter Store"
     add_parameter "/shiftboard/api/email" "$SHIFTBOARD_USERNAME" "secure"
     add_parameter "/shiftboard/api/password" "$SHIFTBOARD_PASSWORD" "secure"
+    add_parameter "/shiftboard/api/state_filter" "$STATE_FILTER"
     add_parameter "/shiftboard/notifications/sender" "$SMTP_SENDER"
     add_parameter "/shiftboard/notifications/recipient" "$SMTP_RECIPIENT"
 

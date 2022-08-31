@@ -32,6 +32,8 @@ github.com/edevenport/shiftboard-sdk-go v0.0.0-20220816190702-880d2edd18e6 h1:C4
 github.com/edevenport/shiftboard-sdk-go v0.0.0-20220816190702-880d2edd18e6/go.mod h1:2e4tCnQZMoH6SBHN5QuiMUa6l8b5ZS/Z2W93rQ4316Y=
 github.com/edevenport/shiftboard-sdk-go v0.0.0-20220829205954-65d2b4002a2a h1:vJVJWXEwEOiF3/ABaxtqWjFAwosyQvPNBQJRMqXI8co=
 github.com/edevenport/shiftboard-sdk-go v0.0.0-20220829205954-65d2b4002a2a/go.mod h1:2e4tCnQZMoH6SBHN5QuiMUa6l8b5ZS/Z2W93rQ4316Y=
+github.com/edevenport/shiftboard-sdk-go v0.0.0-20220831013327-c8b90a2a9537 h1:0IW4fNUUtG0kDyilIBMnmSiegSs4lCQmms09zYCASjU=
+github.com/edevenport/shiftboard-sdk-go v0.0.0-20220831013327-c8b90a2a9537/go.mod h1:2e4tCnQZMoH6SBHN5QuiMUa6l8b5ZS/Z2W93rQ4316Y=
 github.com/google/go-cmp v0.5.8 h1:e6P7q2lk1O+qJJb4BtCQXlK8vWEO8V1ZeuEdJNOqZyg=
 github.com/google/go-cmp v0.5.8/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/jmespath/go-jmespath v0.4.0 h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9YPoQUg=
