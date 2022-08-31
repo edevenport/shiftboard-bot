@@ -29,8 +29,6 @@ func (m mockInvokeAPI) Invoke(ctx context.Context, params *lambda.InvokeInput, o
 }
 
 func TestGetParametersByPath(t *testing.T) {
-	h := handler{}
-
 	cases := []struct {
 		client         func(t *testing.T) SSMGetParametersByPathAPI
 		path           string
@@ -70,7 +68,7 @@ func TestGetParametersByPath(t *testing.T) {
 	for i, tt := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			ctx := context.TODO()
-			content, err := h.GetParametersByPath(ctx, tt.client(t), tt.path, tt.withDecryption)
+			content, err := GetParametersByPath(ctx, tt.client(t), tt.path, tt.withDecryption)
 			if err != nil {
 				t.Fatalf("expect no error, got %v", err)
 			}
@@ -82,8 +80,6 @@ func TestGetParametersByPath(t *testing.T) {
 }
 
 func TestInvoke(t *testing.T) {
-	h := handler{}
-
 	cases := []struct {
 		client         func(t *testing.T) LambdaInvokeAPI
 		functionName   string
@@ -133,7 +129,7 @@ func TestInvoke(t *testing.T) {
 	for i, tt := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			ctx := context.TODO()
-			content, err := h.Invoke(ctx, tt.client(t), tt.functionName, tt.payload)
+			content, err := Invoke(ctx, tt.client(t), tt.functionName, tt.payload)
 			if err != nil {
 				t.Fatalf("expect no error, got %v", err)
 			}

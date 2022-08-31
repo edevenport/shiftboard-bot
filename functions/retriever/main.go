@@ -18,6 +18,8 @@ import (
 	"github.com/edevenport/shiftboard-sdk-go"
 )
 
+const paramPath = "/shiftboard/api"
+
 type handler struct {
 	workerFunction       string
 	notificationFunction string
@@ -37,14 +39,14 @@ type LambdaInvokeAPI interface {
 		optFns ...func(*lambda.Options)) (*lambda.InvokeOutput, error)
 }
 
-func (h *handler) GetParametersByPath(ctx context.Context, api SSMGetParametersByPathAPI, path string, withDecryption bool) (*ssm.GetParametersByPathOutput, error) {
+func GetParametersByPath(ctx context.Context, api SSMGetParametersByPathAPI, path string, withDecryption bool) (*ssm.GetParametersByPathOutput, error) {
 	return api.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
 		Path:           aws.String(path),
 		WithDecryption: withDecryption,
 	})
 }
 
-func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName string, payload []byte) (*lambda.InvokeOutput, error) {
+func Invoke(ctx context.Context, api LambdaInvokeAPI, functionName string, payload []byte) (*lambda.InvokeOutput, error) {
 	return api.Invoke(ctx, &lambda.InvokeInput{
 		FunctionName:   aws.String(functionName),
 		InvocationType: types.InvocationTypeEvent,
@@ -53,10 +55,12 @@ func (h *handler) Invoke(ctx context.Context, api LambdaInvokeAPI, functionName 
 }
 
 func (h handler) HandleRequest(ctx context.Context) (string, error) {
-	output, err := h.GetParametersByPath(context.TODO(), h.ssmClient, "/shiftboard/api", true)
+	output, err := GetParametersByPath(context.TODO(), h.ssmClient, paramPath, true)
 	if err != nil {
 		return "", fmt.Errorf("error reading AWS parameter store: %v", err)
 	}
+
+	fmt.Printf("GetParametersByPath Output: %+v\n", output)
 
 	email, password, err := parseParameters(output)
 	if err != nil {
@@ -78,10 +82,14 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error marshalling ShiftBoard API data: %v", err)
 	}
 
-	_, err = h.Invoke(context.TODO(), h.lambdaClient, h.workerFunction, jsonData)
+	fmt.Printf("Payload Size: %d\n", len(string(jsonData)))
+
+	invokeOutput, err := Invoke(context.TODO(), h.lambdaClient, h.workerFunction, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("error invoking function '%v': %v", h.workerFunction, err)
 	}
+
+	fmt.Printf("Lambda Output: %+v\n", invokeOutput)
 
 	return "Success", nil
 }
@@ -126,10 +134,9 @@ func apiLogin(email string, password string) (*shiftboard.Client, error) {
 }
 
 func readFromAPI(client *shiftboard.Client) (*[]shiftboard.Shift, error) {
+	// From now to 6 months
 	currentTime := time.Now()
-
-	// From one month prior to six months ahead of now
-	startDate := currentTime.AddDate(0, -1, 0).Format("2006-01-02")
+	startDate := currentTime.Format("2006-01-02")
 	endDate := currentTime.AddDate(0, 6, 0).Format("2006-01-02")
 
 	// Fetch list of shifts from API

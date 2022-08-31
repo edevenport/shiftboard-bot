@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -58,8 +57,6 @@ func (m mockPutItemAPI) PutItem(ctx context.Context, params *dynamodb.PutItemInp
 }
 
 func TestInvoke(t *testing.T) {
-	h := handler{}
-
 	cases := []struct {
 		client         func(t *testing.T) LambdaInvokeAPI
 		functionName   string
@@ -108,7 +105,7 @@ func TestInvoke(t *testing.T) {
 
 	for i, tt := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			content, err := h.Invoke(context.TODO(), tt.client(t), tt.functionName, tt.payload)
+			content, err := Invoke(context.TODO(), tt.client(t), tt.functionName, tt.payload)
 			if err != nil {
 				t.Fatalf("expect no error, got %v", err)
 			}
@@ -123,7 +120,6 @@ func TestInvoke(t *testing.T) {
 }
 
 func TestPutItem(t *testing.T) {
-	h := handler{}
 	item := &MockItem{&shiftboard.Shift{}}
 	avItem := item.AttributeValue()
 
@@ -168,7 +164,7 @@ func TestPutItem(t *testing.T) {
 
 	for i, tt := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			content, err := h.PutItem(context.TODO(), tt.client(t), tt.tableName, tt.item)
+			content, err := PutItem(context.TODO(), tt.client(t), tt.tableName, tt.item)
 			if err != nil {
 				t.Fatalf("expect no error, got %v", err)
 			}
@@ -180,7 +176,6 @@ func TestPutItem(t *testing.T) {
 }
 
 func TestScanPages(t *testing.T) {
-	h := handler{}
 	item := MockItem{&shiftboard.Shift{}}
 
 	itemList := []map[string]dbtypes.AttributeValue{}
@@ -201,7 +196,7 @@ func TestScanPages(t *testing.T) {
 			},
 		},
 	}
-	objects, err := h.scanPages(context.TODO(), pager)
+	objects, err := scanPages(context.TODO(), pager)
 	if err != nil {
 		t.Fatalf("expect no error, got %v", err)
 	}
@@ -210,42 +205,7 @@ func TestScanPages(t *testing.T) {
 	}
 }
 
-func TestConstructMessage(t *testing.T) {
-	cases := []struct {
-		description string
-		item        diff
-		expect      string
-	}{
-		{
-			description: "addMessage",
-			item:        diff{State: "created", Shift: mockShift()},
-			expect:      "New shift added",
-		},
-		{
-			description: "updateMessage",
-			item:        diff{State: "updated", Shift: mockShift()},
-			expect:      "Shift updated",
-		},
-		{
-			description: "emptyMessage",
-			item:        diff{},
-			expect:      "",
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.description, func(t *testing.T) {
-			result := constructMessage(tt.item)
-			if e, a := tt.expect, result; !strings.HasPrefix(a.Subject, e) {
-				t.Errorf("expect prefix %v, got %v", e, a.Subject)
-			}
-		})
-	}
-}
-
 func TestCompareData(t *testing.T) {
-	h := handler{}
-
 	// Mock new data
 	newData := []shiftboard.Shift{mockShift()}
 
@@ -279,7 +239,7 @@ func TestCompareData(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.description, func(t *testing.T) {
-			changeLog := h.compareData(&tt.newData, &tt.cachedData)
+			changeLog := compareData(&tt.newData, &tt.cachedData)
 			if e, a := tt.expect, changeLog[0].State; e != a {
 				t.Errorf("expect %v, got %v", e, a)
 			}
@@ -289,11 +249,6 @@ func TestCompareData(t *testing.T) {
 }
 
 func TestGetState(t *testing.T) {
-	// item := &MockItem{&shiftboard.Shift{}}
-	// item.New()
-
-	// shift := *item.Shift
-	// cache := mockCache(shift)
 	shift := mockShift()
 	cache := []shiftboard.Shift{shift}
 
@@ -370,7 +325,7 @@ func TestGetEnv(t *testing.T) {
 }
 
 func TestAddItemTTL(t *testing.T) {
-	expect := int64(1657886400)
+	expect := int64(1655899200)
 	result := addItemTTL(mockShift())
 
 	if (ShiftExt{} == result) {

@@ -62,7 +62,7 @@ function invoke_function() {
         printf "%s%s%s\n" "$RED" "$content" "$NOCOLOR"
     fi
 
-    sleep 10
+    sleep 20
 }
 
 function wait_for_messages() {
