@@ -23,7 +23,7 @@ Parameters:
     Default: "shiftboard/api"
   SSMNotificationsParameterPath:
     Type: String
-    Default: "shiftboard/notifications"
+    Default: "shiftboard/notification"
 
 Globals:
   Function:

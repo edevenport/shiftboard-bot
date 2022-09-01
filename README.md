@@ -11,8 +11,8 @@ The bot configuration is stored in the AWS SSM Parameter Store.
 | `/shiftboard/api/email` | ShiftBoard API username |
 | `/shiftboard/api/password` | ShiftBoard API password (encrypted) |
 | `/shiftboard/api/state_filter` | Optional comma delimited list of states (`WA,Washington`) for filtering API results |
-| `/shiftboard/notifications/sender` | AWS SES verified sender email address |
-| `/shiftboard/notifications/recipient` | AWS SES verified comma delimited recipient email addresses |
+| `/shiftboard/notification/sender` | AWS SES verified sender email address |
+| `/shiftboard/notification/recipients` | AWS SES verified comma delimited recipient email addresses |
 
 ### Deploy to Localstack
 

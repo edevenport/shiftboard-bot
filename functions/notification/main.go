@@ -19,7 +19,7 @@ import (
 
 const (
 	charSet   = "UTF-8"
-	paramPath = "/shiftboard/notifications"
+	paramPath = "/shiftboard/notification"
 )
 
 type handler struct {
@@ -50,11 +50,11 @@ type SSMGetParametersByPathAPI interface {
 		optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
 }
 
-func SendEmail(ctx context.Context, api SESSendEmailAPI, sender string, recipient string, msg Message) (*ses.SendEmailOutput, error) {
+func SendEmail(ctx context.Context, api SESSendEmailAPI, sender string, recipients string, msg Message) (*ses.SendEmailOutput, error) {
 	return api.SendEmail(ctx, &ses.SendEmailInput{
 		Destination: &types.Destination{
 			CcAddresses: []string{},
-			ToAddresses: strings.Split(recipient, ","),
+			ToAddresses: strings.Split(recipients, ","),
 		},
 		Message: &types.Message{
 			Body: &types.Body{
@@ -90,8 +90,8 @@ func (h *handler) HandleRequest(ctx context.Context, payload Diff) (string, erro
 		return "", fmt.Errorf("error reading from SSM parameter store: %v", err)
 	}
 
-	// Extract sender and recipient from parameters
-	sender, recipient, err := parseParameters(params)
+	// Extract sender and recipients from parameters
+	sender, recipients, err := parseParameters(params)
 	if err != nil {
 		return "", fmt.Errorf("error parsing parameters: %v", err)
 	}
@@ -100,18 +100,18 @@ func (h *handler) HandleRequest(ctx context.Context, payload Diff) (string, erro
 	msg := constructMessage(&payload)
 
 	// Send email to recipients
-	output, err := SendEmail(context.TODO(), h.sesClient, sender, recipient, msg)
+	output, err := SendEmail(context.TODO(), h.sesClient, sender, recipients, msg)
 	if err != nil {
 		return "", fmt.Errorf("error sending SES notification: %v", err)
 	}
 
 	fmt.Println("Message ID:", *output.MessageId)
-	fmt.Println("Email sent to " + recipient)
+	fmt.Println("Email sent to " + recipients)
 
 	return "Success", nil
 }
 
-func parseParameters(output *ssm.GetParametersByPathOutput) (sender string, recipient string, err error) {
+func parseParameters(output *ssm.GetParametersByPathOutput) (sender string, recipients string, err error) {
 	if len(output.Parameters) == 0 {
 		return "", "", errors.New("no parameters returned from SSM parameter store")
 	}
@@ -120,12 +120,12 @@ func parseParameters(output *ssm.GetParametersByPathOutput) (sender string, reci
 		switch strings.Split(*item.Name, "/")[3] {
 		case "sender":
 			sender = *item.Value
-		case "recipient":
-			recipient = *item.Value
+		case "recipients":
+			recipients = *item.Value
 		}
 	}
 
-	return sender, recipient, nil
+	return sender, recipients, nil
 }
 
 func constructMessage(item *Diff) (msg Message) {

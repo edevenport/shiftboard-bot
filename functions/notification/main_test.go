@@ -122,11 +122,11 @@ func TestSendEmail(t *testing.T) {
 	messageID := "50632886-158d-4f8b-abf8-d74649e92d7b"
 
 	cases := []struct {
-		client    func(t *testing.T) SESSendEmailAPI
-		sender    string
-		recipient string
-		msg       Message
-		expect    *ses.SendEmailOutput
+		client     func(t *testing.T) SESSendEmailAPI
+		sender     string
+		recipients string
+		msg        Message
+		expect     *ses.SendEmailOutput
 	}{
 		{
 			client: func(t *testing.T) SESSendEmailAPI {
@@ -169,8 +169,8 @@ func TestSendEmail(t *testing.T) {
 					}, nil
 				})
 			},
-			sender:    "no-reply@example.com",
-			recipient: "user@example.com",
+			sender:     "no-reply@example.com",
+			recipients: "user@example.com",
 			msg: Message{
 				Subject:  "test",
 				TextBody: "text message",
@@ -186,7 +186,7 @@ func TestSendEmail(t *testing.T) {
 	for i, tt := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			ctx := context.TODO()
-			output, err := SendEmail(ctx, tt.client(t), tt.sender, tt.recipient, tt.msg)
+			output, err := SendEmail(ctx, tt.client(t), tt.sender, tt.recipients, tt.msg)
 			if err != nil {
 				t.Fatalf("expect no error, got %v", err)
 			}
@@ -223,14 +223,14 @@ func TestParseParameters(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.description, func(t *testing.T) {
-			sender, recipient, err := parseParameters(tt.output)
+			sender, recipients, err := parseParameters(tt.output)
 			if e, a := tt.expectErr, err; a != nil && e.Error() != a.Error() {
 				t.Errorf("expect %v, got %v", e, a)
 			}
 			if e, a := tt.expectSender, sender; e != a {
 				t.Errorf("expect %v, got %v", e, a)
 			}
-			if e, a := tt.expectRecipient, recipient; e != a {
+			if e, a := tt.expectRecipient, recipients; e != a {
 				t.Errorf("expect %v, got %v", e, a)
 			}
 		})
@@ -244,12 +244,12 @@ func mockParametersOutput(params bool) *ssm.GetParametersByPathOutput {
 
 	if params {
 		parameters = append(parameters, types.Parameter{
-			Name:  aws.String("/shiftboard/notifications/sender"),
+			Name:  aws.String("/shiftboard/notification/sender"),
 			Value: aws.String("no-reply@example.com"),
 		})
 
 		parameters = append(parameters, types.Parameter{
-			Name:  aws.String("/shiftboard/notifications/recipient"),
+			Name:  aws.String("/shiftboard/notification/recipients"),
 			Value: aws.String("user@example.com"),
 		})
 	}
