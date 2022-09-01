@@ -120,7 +120,7 @@ func filterByState(data *[]shiftboard.Shift, filter string) *[]shiftboard.Shift 
 func parseParameters(output *ssm.GetParametersByPathOutput) (*apiParameters, error) {
 	var params apiParameters
 	if len(output.Parameters) == 0 {
-		return nil, errors.New("no parameters returned from SSM parameter store")
+		return &params, errors.New("no parameters returned from SSM parameter store")
 	}
 
 	for _, item := range output.Parameters {
@@ -138,6 +138,11 @@ func parseParameters(output *ssm.GetParametersByPathOutput) (*apiParameters, err
 }
 
 func apiLogin(email string, password string) (*shiftboard.Client, error) {
+	// Validate email and password parameters
+	if email == "" || password == "" {
+		return nil, fmt.Errorf("API email or password parameters not found")
+	}
+
 	// Initialize ShiftBoard API client
 	client := shiftboard.NewClient(email, password)
 

@@ -145,38 +145,44 @@ func TestInvoke(t *testing.T) {
 
 func TestParseParameters(t *testing.T) {
 	cases := []struct {
-		description    string
-		output         *ssm.GetParametersByPathOutput
-		expectEmail    string
-		expectPassword string
-		expectErr      error
+		description       string
+		output            *ssm.GetParametersByPathOutput
+		expectEmail       string
+		expectPassword    string
+		expectStateFilter string
+		expectErr         error
 	}{
 		{
-			description:    "checkParameters",
-			output:         mockParametersOutput(true),
-			expectEmail:    "user@example.com",
-			expectPassword: "password123",
-			expectErr:      nil,
+			description:       "checkParameters",
+			output:            mockParametersOutput(true),
+			expectEmail:       "user@example.com",
+			expectPassword:    "password123",
+			expectStateFilter: "WA,Washington",
+			expectErr:         nil,
 		},
 		{
-			description:    "checkEmptyParameters",
-			output:         mockParametersOutput(false),
-			expectEmail:    "",
-			expectPassword: "",
-			expectErr:      errors.New("no parameters returned from SSM parameter store"),
+			description:       "checkEmptyParameters",
+			output:            mockParametersOutput(false),
+			expectEmail:       "",
+			expectPassword:    "",
+			expectStateFilter: "",
+			expectErr:         errors.New("no parameters returned from SSM parameter store"),
 		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.description, func(t *testing.T) {
-			email, password, err := parseParameters(tt.output)
+			config, err := parseParameters(tt.output)
 			if e, a := tt.expectErr, err; a != nil && e.Error() != a.Error() {
 				t.Errorf("expect %v, got %v", e, a)
 			}
-			if e, a := tt.expectEmail, email; e != a {
+			if e, a := tt.expectEmail, config.email; e != a {
 				t.Errorf("expect %v, got %v", e, a)
 			}
-			if e, a := tt.expectPassword, password; e != a {
+			if e, a := tt.expectPassword, config.password; e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+			if e, a := tt.expectStateFilter, config.stateFilter; e != a {
 				t.Errorf("expect %v, got %v", e, a)
 			}
 		})
@@ -218,19 +224,21 @@ func TestGetEnv(t *testing.T) {
 
 // mockParametersOutput returns mock parameters if 'params' bool is true, otherwise
 // returns an empty parameters slice if false.
-func mockParametersOutput(params bool) *ssm.GetParametersByPathOutput {
+func mockParametersOutput(seed bool) *ssm.GetParametersByPathOutput {
+	m := map[string]string{
+		"/shiftboard/api/email":        "user@example.com",
+		"/shiftboard/api/password":     "password123",
+		"/shiftboard/api/state_filter": "WA,Washington",
+	}
 	var parameters []ssmtypes.Parameter
 
-	if params {
-		parameters = append(parameters, ssmtypes.Parameter{
-			Name:  aws.String("/shiftboard/api/email"),
-			Value: aws.String("user@example.com"),
-		})
-
-		parameters = append(parameters, ssmtypes.Parameter{
-			Name:  aws.String("/shiftboard/api/password"),
-			Value: aws.String("password123"),
-		})
+	if seed {
+		for k, v := range m {
+			parameters = append(parameters, ssmtypes.Parameter{
+				Name:  aws.String(k),
+				Value: aws.String(v),
+			})
+		}
 	}
 
 	return &ssm.GetParametersByPathOutput{
