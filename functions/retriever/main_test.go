@@ -4,17 +4,26 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math/rand"
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/edevenport/shiftboard-sdk-go"
 
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
+
+const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+type MockItem struct {
+	*shiftboard.Shift
+}
 
 type mockGetParametersByPathAPI func(ctx context.Context, params *ssm.GetParametersByPathInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
 
@@ -143,6 +152,70 @@ func TestInvoke(t *testing.T) {
 	}
 }
 
+func TestLocationMatch(t *testing.T) {
+	cases := []struct {
+		description string
+		location    shiftboard.Location
+		filter      string
+		expect      bool
+	}{
+		{
+			description: "successfulMatch",
+			location:    shiftboard.Location{State: "WA"},
+			filter:      "WA",
+			expect:      true,
+		},
+		{
+			description: "wrongMatch",
+			location:    shiftboard.Location{State: "IL"},
+			filter:      "WA",
+			expect:      false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.description, func(t *testing.T) {
+			result := locationMatch(tt.location, tt.filter)
+			if e, a := tt.expect, result; e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+		})
+	}
+}
+
+func TestFilterByState(t *testing.T) {
+	data := []shiftboard.Shift{mockShift()}
+
+	cases := []struct {
+		description string
+		data        *[]shiftboard.Shift
+		filter      string
+		expect      int
+	}{
+		{
+			description: "match",
+			data:        &data,
+			filter:      "WA",
+			expect:      1,
+		},
+		{
+			description: "noMatch",
+			data:        &data,
+			filter:      "IL",
+			expect:      0,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.description, func(t *testing.T) {
+			results := filterByState(tt.data, tt.filter)
+			if e, a := tt.expect, len(*results); e != a {
+				t.Errorf("expect %v, got %v", e, a)
+			}
+		})
+	}
+}
+
 func TestParseParameters(t *testing.T) {
 	cases := []struct {
 		description       string
@@ -251,4 +324,47 @@ func mockEnv() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (m *MockItem) New() *MockItem {
+	createTime, _ := time.Parse(time.RFC3339, "2022-04-18T12:00:00Z")
+	updateTime, _ := time.Parse(time.RFC3339, "2022-05-11T12:00:00Z")
+
+	m.ID = randomID()
+	m.Name = randomString()
+	m.StartDate = "2022-06-15T12:00:00"
+	m.EndDate = "2022-06-15T12:00:00"
+	m.Created = createTime
+	m.Updated = updateTime
+	m.Location = &shiftboard.Location{State: "WA"}
+
+	return m
+}
+
+func mockShift() shiftboard.Shift {
+	item := &MockItem{&shiftboard.Shift{}}
+	item.New()
+
+	return *item.Shift
+}
+
+func randomID() string {
+	rand.Seed(time.Now().UnixNano())
+
+	min := 100000000
+	max := 999999999
+	id := min + rand.Intn(max-min)
+
+	return strconv.Itoa(id)
+}
+
+func randomString() string {
+	rand.Seed(time.Now().UnixNano())
+
+	b := make([]byte, 24)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+
+	return string(b)
 }

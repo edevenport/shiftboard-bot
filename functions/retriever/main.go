@@ -104,13 +104,21 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 	return "Success", nil
 }
 
+func locationMatch(location shiftboard.Location, filter string) bool {
+	for _, state := range strings.Split(filter, ",") {
+		if location.State == state {
+			return true
+		}
+	}
+
+	return false
+}
+
 func filterByState(data *[]shiftboard.Shift, filter string) *[]shiftboard.Shift {
-	var results []shiftboard.Shift
+	results := (*data)[:0]
 	for _, item := range *data {
-		for _, state := range strings.Split(filter, ",") {
-			if item.Location.State == state {
-				results = append(results, item)
-			}
+		if locationMatch(*item.Location, filter) {
+			results = append(results, item)
 		}
 	}
 
