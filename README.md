@@ -17,7 +17,6 @@ The bot configuration is stored in the AWS SSM Parameter Store.
 ### Deploy to Localstack
 
     ./scripts/teardown.sh && ./scripts/setup.sh && localstack logs -f
-
     ./scripts/test.sh
 
 ### Deploy to Production
