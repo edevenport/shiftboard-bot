@@ -107,6 +107,8 @@ function add_parameter() {
 
     if [ "${3-}" == "secure" ]; then
         ssm_args+=(--type SecureString)
+    elif [ "${3-}" == "list" ]; then
+        ssm_args+=(--type StringList)
     fi
 
     aws "${ssm_args[@]}"
@@ -160,7 +162,7 @@ function main() {
     add_parameter "/shiftboard/api/password" "$SHIFTBOARD_PASSWORD" "secure"
     add_parameter "/shiftboard/api/state_filter" "$STATE_FILTER"
     add_parameter "/shiftboard/notification/sender" "$SMTP_SENDER"
-    add_parameter "/shiftboard/notification/recipients" "$SMTP_RECIPIENT"
+    add_parameter "/shiftboard/notification/recipients" "$SMTP_RECIPIENT" "list"
 
     echo "Verify email identity: $SMTP_SENDER"
     aws ses verify-email-identity \
