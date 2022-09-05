@@ -190,7 +190,7 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 		if err := h.writeAllToDB(h.tableName, payload); err != nil {
 			return "", fmt.Errorf("error writing data to DynamoDB table: %v", err)
 		}
-		return "Success", nil
+		return "No cache found, writing all items to the database", nil
 	}
 
 	// Compare payload with enteries cached in DynamoDB
@@ -208,6 +208,7 @@ func (h *handler) HandleRequest(ctx context.Context, payload []shiftboard.Shift)
 }
 
 func compareData(newData *[]shiftboard.Shift, cachedData *[]shiftboard.Shift) (changeLog []Diff) {
+	fmt.Println("Comparing new data with cache")
 	for i := 0; i < len(*newData); i++ {
 		shift := (*newData)[i]
 		diff := Diff{}
@@ -275,10 +276,12 @@ func getState(shift shiftboard.Shift, cache *[]shiftboard.Shift) string {
 	}
 
 	if updated {
+		fmt.Println("Found updated shift")
 		return "updated"
 	}
 
 	if !found {
+		fmt.Println("Found new shift")
 		return "created"
 	}
 

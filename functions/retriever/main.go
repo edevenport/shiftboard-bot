@@ -92,7 +92,7 @@ func (h handler) HandleRequest(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("error marshalling ShiftBoard API data: %v", err)
 	}
 
-	fmt.Printf("Payload Size: %d\n", len(string(jsonData)))
+	fmt.Printf("Shift count: %d\n", len(*data))
 
 	invokeOutput, err := Invoke(context.TODO(), h.lambdaClient, h.workerFunction, jsonData)
 	if err != nil {
